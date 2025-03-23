@@ -1,0 +1,40 @@
+{
+  "name": "@uh-joan/mcp-server-cortellis",
+  "version": "0.1.0",
+  "description": "MCP server for Cortellis drug database search and ontology exploration",
+  "license": "MIT",
+  "type": "module",
+  "author": "Joan Saez-Pons (https://github.com/uh-joan)",
+  "keywords": [
+    "mcp",
+    "cortellis",
+    "drug-database",
+    "pharmaceutical"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "mcp-server-cortellis": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "start": "node -r dotenv/config dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.1",
+    "dotenv": "^16.4.5",
+    "node-fetch": "^2.6.12"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.9",
+    "@types/node-fetch": "^2.6.12",
+    "shx": "^0.3.4",
+    "typescript": "^5.8.2"
+  }
+}
