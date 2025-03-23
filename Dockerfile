@@ -3,11 +3,14 @@ FROM node:20-slim
 
 WORKDIR /app
 
+# Install TypeScript globally
+RUN npm install -g typescript
+
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (skip prepare script)
+RUN npm install --ignore-scripts
 
 # Copy source files
 COPY . .

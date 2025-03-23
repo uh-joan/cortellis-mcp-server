@@ -11,11 +11,17 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { cleanObject } from "./util.js";
 import fetch from 'node-fetch';
+import express, { Request, Response } from 'express';
 import 'dotenv/config';
+import { createHash } from 'crypto';
+import request from 'request';
+import { promisify } from 'util';
 
 // API credentials from environment variables
-const USERNAME = process.env.CORTELLIS_USERNAME;
-const PASSWORD = process.env.CORTELLIS_PASSWORD;
+const USERNAME = process.env.CORTELLIS_USERNAME || '';
+const PASSWORD = process.env.CORTELLIS_PASSWORD || '';
+const USE_HTTP = process.env.USE_HTTP === 'true';
+const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
 
 if (!USERNAME || !PASSWORD) {
   console.error("Error: CORTELLIS_USERNAME and CORTELLIS_PASSWORD environment variables must be set");
@@ -139,23 +145,74 @@ interface OntologyParams {
   technology?: string;
 }
 
+const requestAsync = promisify(request);
+
+function createMcpError(message: string, code: number = -32603): McpError {
+  return new McpError(code, message);
+}
+
 async function digestAuth(url: string) {
   try {
-    const response = await fetch(url, {
+    console.log(`Making request to: ${url}`);
+    
+    // First request to get the WWW-Authenticate header
+    const initialResponse = await fetch(url);
+    const wwwAuth = initialResponse.headers.get('www-authenticate');
+    if (!wwwAuth) {
+      throw new Error('No WWW-Authenticate header received');
+    }
+
+    // Parse WWW-Authenticate header
+    const realm = wwwAuth.match(/realm="([^"]+)"/)?.[1];
+    const nonce = wwwAuth.match(/nonce="([^"]+)"/)?.[1];
+    const qop = wwwAuth.match(/qop="([^"]+)"/)?.[1] || 'auth';
+    
+    if (!realm || !nonce) {
+      throw new Error('Invalid WWW-Authenticate header');
+    }
+
+    console.log('WWW-Authenticate header:', wwwAuth);
+
+    // Get the full URL path including query parameters
+    const urlObj = new URL(url);
+    const fullPath = urlObj.pathname + urlObj.search;
+
+    // Calculate digest components using MD5
+    const ha1 = createHash('md5').update(`${USERNAME}:${realm}:${PASSWORD}`).digest('hex');
+    const ha2 = createHash('md5').update(`GET:${fullPath}`).digest('hex');
+    const nc = '00000001';
+    const cnonce = Math.random().toString(36).substring(2, 10);
+    const digestResponse = createHash('md5')
+      .update(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
+      .digest('hex');
+
+    // Build authorization header with full path
+    const authHeader = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${fullPath}", qop="${qop}", nc=${nc}, cnonce="${cnonce}", response="${digestResponse}", algorithm=MD5, digest="${digestResponse}"`;
+
+    console.log('Authorization header:', authHeader);
+
+    // Make authenticated request
+    const authenticatedResponse = await fetch(url, {
       headers: {
-        'Authorization': 'Digest ' + Buffer.from(`${USERNAME}:${PASSWORD}`).toString('base64'),
+        'Authorization': authHeader,
         'Accept': 'application/json'
       }
     });
 
-    if (!response.ok) {
-      throw new Error(`Request failed with status code: ${response.status}`);
+    console.log(`Response status: ${authenticatedResponse.status}`);
+    console.log(`Response headers: ${JSON.stringify(authenticatedResponse.headers.raw(), null, 2)}`);
+    const text = await authenticatedResponse.text();
+    console.log(`Response body: ${text}`);
+
+    if (!authenticatedResponse.ok) {
+      throw new Error(`Request failed with status code: ${authenticatedResponse.status}`);
     }
 
-    return await response.json();
+    return JSON.parse(text);
   } catch (error: unknown) {
+    console.error('Error in digestAuth:', error);
     throw new McpError(
-      ErrorCode.InternalError,
+      -32603,
       `API request failed: ${error instanceof Error ? error.message : String(error)}`
     );
   }
@@ -191,108 +248,167 @@ async function searchDrugs(params: SearchParams) {
   };
 }
 
-async function exploreOntology(params: OntologyParams) {
-  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/ontologies-v1/taxonomy";
-  let searchCategory: string | undefined;
-  let searchTerm: string | undefined;
-
-  if (params.action) {
-    searchCategory = "action";
-    searchTerm = params.action;
-  } else if (params.indication) {
-    searchCategory = "indication";
-    searchTerm = params.indication;
-  } else if (params.company) {
-    searchCategory = "company";
-    searchTerm = params.company;
-  } else if (params.drug_name) {
-    searchCategory = "drug_name";
-    searchTerm = params.drug_name;
-  } else if (params.target) {
-    searchCategory = "target";
-    searchTerm = params.target;
-  } else if (params.technology) {
-    searchCategory = "technology";
-    searchTerm = params.technology;
-  } else if (params.category && params.term) {
-    searchCategory = params.category;
-    searchTerm = params.term;
+async function exploreOntology(category?: string, term?: string): Promise<any> {
+  if (!category || !term) {
+    throw new McpError(-32603, 'Category and search term are required');
   }
 
-  if (!searchCategory || !searchTerm) {
-    throw new McpError(
-      ErrorCode.InternalError,
-      "Please specify a category (action, indication, company, drug_name, target, technology) along with your search term."
-    );
-  }
+  const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1';
+  const searchUrl = `${baseUrl}/taxonomy/${category}/search/${encodeURIComponent(term)}?showDuplicates=1&hitSynonyms=1&fmt=json`;
 
-  const url = `${baseUrl}/${searchCategory}/search/${searchTerm}?showDuplicates=0&hitSynonyms=1&fmt=json`;
-  const response = await digestAuth(url);
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify(response, null, 2)
-    }],
-    isError: false
-  };
+  try {
+    const response = await requestAsync({
+      url: searchUrl,
+      method: 'GET',
+      auth: {
+        user: USERNAME,
+        pass: PASSWORD,
+        sendImmediately: false
+      }
+    });
+
+    if (response.statusCode === 200) {
+      return JSON.parse(response.body);
+    } else {
+      throw new McpError(-32603, `API request failed with status code ${response.statusCode}`);
+    }
+  } catch (error) {
+    console.error('Error in ontology search:', error);
+    throw new McpError(-32603, 'Ontology search failed');
+  }
 }
 
 async function runServer() {
-  const transport = new StdioServerTransport();
-  const server = new Server(
-    {
-      name: "cortellis",
-      version: "0.1.0",
-    },
-    {
-      capabilities: {
-        tools: {}
+  if (USE_HTTP) {
+    const app = express();
+    app.use(express.json());
+
+    // Add search_drugs endpoint
+    app.post('/search_drugs', async (req: Request, res: Response) => {
+      try {
+        const result = await searchDrugs(req.body);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
       }
-    }
-  );
+    });
 
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL]
-  }));
+    // Add explore_ontology endpoint
+    app.post('/explore_ontology', async (req: Request, res: Response) => {
+      try {
+        const { term, category, action, indication, company, drug_name, target, technology } = req.body;
+        
+        let searchCategory = category;
+        let searchTerm = term;
 
-  server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    if (!request.params?.name) {
-      throw new McpError(
-        ErrorCode.MethodNotFound,
-        "Tool name not provided"
-      );
-    }
+        if (!searchCategory) {
+          if (action) {
+            searchCategory = 'action';
+            searchTerm = action;
+          } else if (indication) {
+            searchCategory = 'indication';
+            searchTerm = indication;
+          } else if (company) {
+            searchCategory = 'company';
+            searchTerm = company;
+          } else if (drug_name) {
+            searchCategory = 'drug_name';
+            searchTerm = drug_name;
+          } else if (target) {
+            searchCategory = 'target';
+            searchTerm = target;
+          } else if (technology) {
+            searchCategory = 'technology';
+            searchTerm = technology;
+          }
+        }
 
-    const params = request.params.arguments || {};
-    
-    try {
-      switch (request.params.name) {
-        case "search_drugs":
-          return await searchDrugs(params as SearchParams);
-        case "explore_ontology":
-          return await exploreOntology(params as OntologyParams);
-        default:
-          throw new McpError(
-            ErrorCode.MethodNotFound,
-            `Unknown tool: ${request.params.name}`
-          );
+        if (!searchTerm) {
+          searchTerm = term;
+        }
+
+        if (typeof searchCategory !== 'string' || typeof searchTerm !== 'string') {
+          throw new McpError(-32603, 'Invalid category or search term');
+        }
+
+        const result = await exploreOntology(searchCategory, searchTerm);
+        res.json(result);
+      } catch (error) {
+        console.error('Error in /explore_ontology:', error);
+        const mcpError = error instanceof McpError ? error : new McpError(-32603, String(error));
+        res.status(500).json({
+          error: `MCP error ${mcpError.code}: ${mcpError.message}`
+        });
       }
-    } catch (error: unknown) {
-      if (error instanceof McpError) {
-        throw error;
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Failed to execute ${request.params.name}: ${error instanceof Error ? error.message : String(error)}`
-      );
-    }
-  });
+    });
 
-  await server.connect(transport);
-  console.error("Cortellis MCP Server running on stdio");
+    app.listen(PORT, () => {
+      console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
+    });
+  } else {
+    const transport = new StdioServerTransport();
+    const server = new Server(
+      {
+        name: "cortellis",
+        version: "0.1.0",
+      },
+      {
+        capabilities: {
+          tools: {}
+        }
+      }
+    );
+
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL]
+    }));
+
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      if (!request.params?.name) {
+        throw new McpError(
+          -32603,
+          "Tool name not provided"
+        );
+      }
+
+      const params = request.params.arguments || {};
+      
+      try {
+        switch (request.params.name) {
+          case "search_drugs":
+            return await searchDrugs(params as SearchParams);
+          case "explore_ontology":
+            if (typeof params.category !== 'string' || typeof params.term !== 'string') {
+              throw new McpError(-32603, 'Invalid category or search term');
+            }
+            return await exploreOntology(params.category, params.term);
+          default:
+            throw new McpError(
+              -32603,
+              `Unknown tool: ${request.params.name}`
+            );
+        }
+      } catch (error: unknown) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        throw new McpError(
+          -32603,
+          `Failed to execute ${request.params.name}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    });
+
+    await server.connect(transport);
+    console.log("Cortellis MCP Server running on stdio");
+  }
 }
 
 runServer().catch((error) => {
-  console.error(error);
+  console.error("Server error:", error);
   process.exit(1);
 });
