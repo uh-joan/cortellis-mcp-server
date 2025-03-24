@@ -121,6 +121,51 @@ const EXPLORE_ONTOLOGY_TOOL: Tool = {
   }
 };
 
+const GET_DRUG_TOOL: Tool = {
+  name: "get_drug",
+  description: "Return the entire drug record with all available fields for a given identifier from Cortellis API",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+        description: "Drug Identifier"
+      }
+    },
+    required: ["id"]
+  }
+};
+
+const GET_DRUG_SWOT_TOOL: Tool = {
+  name: "get_drug_swot",
+  description: "Return SWOT analysis complementing chosen drug record for a submitted drug identifier from Cortellis API",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+        description: "Drug Identifier"
+      }
+    },
+    required: ["id"]
+  }
+};
+
+const GET_DRUG_FINANCIAL_TOOL: Tool = {
+  name: "get_drug_financial",
+  description: "Return financial commentary and data (actual sales and consensus forecast) for a submitted drug identifier from Cortellis API",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+        description: "Drug Identifier"
+      }
+    },
+    required: ["id"]
+  }
+};
+
 interface SearchParams {
   query?: string;
   company?: string;
@@ -278,6 +323,45 @@ async function exploreOntology(category?: string, term?: string): Promise<any> {
   }
 }
 
+async function getDrug(id: string) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/drug";
+  const url = `${baseUrl}/${id}?fmt=json`;
+  const response = await digestAuth(url);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }],
+    isError: false
+  };
+}
+
+async function getDrugSwot(id: string) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/drug/SWOTs";
+  const url = `${baseUrl}/${id}?fmt=json`;
+  const response = await digestAuth(url);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }],
+    isError: false
+  };
+}
+
+async function getDrugFinancial(id: string) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/financial";
+  const url = `${baseUrl}/${id}?fmt=json`;
+  const response = await digestAuth(url);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }],
+    isError: false
+  };
+}
+
 async function runServer() {
   if (USE_HTTP) {
     const app = express();
@@ -346,6 +430,48 @@ async function runServer() {
       }
     });
 
+    // Add get_drug endpoint
+    app.get('/drug/:id', async (req: Request, res: Response) => {
+      try {
+        const result = await getDrug(req.params.id);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
+    // Add get_drug_swot endpoint
+    app.get('/drug/:id/swot', async (req: Request, res: Response) => {
+      try {
+        const result = await getDrugSwot(req.params.id);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
+    // Add get_drug_financial endpoint
+    app.get('/drug/:id/financial', async (req: Request, res: Response) => {
+      try {
+        const result = await getDrugFinancial(req.params.id);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
     app.listen(PORT, () => {
       console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
     });
@@ -364,7 +490,7 @@ async function runServer() {
     );
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL]
+      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL]
     }));
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -386,6 +512,21 @@ async function runServer() {
               throw new McpError(-32603, 'Invalid category or search term');
             }
             return await exploreOntology(params.category, params.term);
+          case "get_drug":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrug(params.id);
+          case "get_drug_swot":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrugSwot(params.id);
+          case "get_drug_financial":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrugFinancial(params.id);
           default:
             throw new McpError(
               -32603,

@@ -43,13 +43,61 @@ MCP Server for searching drugs and exploring ontology terms in the Cortellis dat
      - `technology` (string) - Drug technology
    - Returns: JSON response with matching taxonomy terms
 
+3. `get_drug`
+   - Return the entire drug record with all available fields for a given identifier
+   - Required Input:
+     - `id` (string) - Drug Identifier
+   - Returns: JSON response with complete drug record
+
+4. `get_drug_swot`
+   - Return SWOT analysis complementing chosen drug record
+   - Required Input:
+     - `id` (string) - Drug Identifier
+   - Returns: JSON response with SWOT analysis for the drug
+
+5. `get_drug_financial`
+   - Return financial commentary and data (actual sales and consensus forecast)
+   - Required Input:
+     - `id` (string) - Drug Identifier
+   - Returns: JSON response with financial data and commentary
+
 ## Features
 
 - Direct access to Cortellis drug database
 - Comprehensive drug development status search
 - Ontology/taxonomy term exploration
+- Detailed drug information retrieval
+- SWOT analysis for drugs
+- Financial data and forecasts
 - Structured JSON responses
 - Pagination support for large result sets
+
+## HTTP API Endpoints
+
+When running in HTTP mode (USE_HTTP=true), the following REST endpoints are available:
+
+1. `POST /search_drugs`
+   - Search for drugs with optional filters
+   - Body: JSON object with search parameters (see `search_drugs` tool inputs)
+
+2. `POST /explore_ontology`
+   - Search taxonomy terms
+   - Body: JSON object with search parameters (see `explore_ontology` tool inputs)
+
+3. `GET /drug/:id`
+   - Get complete drug record by ID
+   - Parameters:
+     - `id`: Drug identifier
+
+4. `GET /drug/:id/swot`
+   - Get SWOT analysis for a drug
+   - Parameters:
+     - `id`: Drug identifier
+
+5. `GET /drug/:id/financial`
+   - Get financial data and forecasts for a drug
+   - Parameters:
+     - `id`: Drug identifier
 
 ## Setup
 
