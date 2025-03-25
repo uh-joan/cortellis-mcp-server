@@ -12,18 +12,34 @@ MCP Server for searching drugs and exploring ontology terms in the Cortellis dat
      - `indication` (string) - Active indications (e.g., obesity)
      - `action` (string) - Target specific action (e.g., glucagon)
      - `phase` (string) - Development status:
-       - S: Suspended
-       - DR: Discovery/Preclinical
-       - CU: Clinical (unknown phase)
-       - C1-C3: Phase 1-3 Clinical
-       - PR: Pre-registration
-       - R: Registered
-       - L: Launched
-       - OL: Outlicensed
-       - NDR: No Development Reported
-       - DX: Discontinued
-       - W: Withdrawn
+       - Supports both short and descriptive formats:
+         - Short format: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
+         - Descriptive format: "Phase 1 Clinical", "Phase 2 Clinical", "Phase 3 Clinical", "Launched", etc.
+       - Supports OR/AND operators: "C2 OR C3" or "Phase 2 Clinical OR Phase 3 Clinical"
+       - Examples:
+         - `phase: "C3"` (short format)
+         - `phase: "C2 OR C3"` (short format)
+         - `phase: "Phase 2 Clinical OR Phase 3 Clinical"` (descriptive format)
+         - `phase: "C2 AND C3"` (using AND operator)
+       - Status codes:
+         - S: Suspended
+         - DR: Discovery/Preclinical
+         - CU: Clinical (unknown phase)
+         - C1-C3: Phase 1-3 Clinical
+         - PR: Pre-registration
+         - R: Registered
+         - L: Launched
+         - OL: Outlicensed
+         - NDR: No Development Reported
+         - DX: Discontinued
+         - W: Withdrawn
      - `phase_terminated` (string) - Last phase before NDR/DX
+       - Supports same formats and operators as `phase`
+       - Examples:
+         - `phase_terminated: "C2 OR CR"` (short format)
+         - `phase_terminated: "C2"` (short format)
+         - `phase_terminated: "Phase 2 Clinical"` (descriptive format)
+         - `phase_terminated: "C2 OR C3"` (multiple phases)
      - `technology` (string) - Drug technology (e.g., small molecule)
      - `drug_name` (string) - Name of the drug
      - `country` (string) - Country of development

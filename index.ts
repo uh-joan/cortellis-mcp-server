@@ -352,8 +352,58 @@ async function searchDrugs(params: SearchParams) {
     if (params.company) queryParts.push(`companiesPrimary:"${params.company}"`);
     if (params.indication) queryParts.push(`indicationsPrimary:${params.indication}`);
     if (params.action) queryParts.push(`actionsPrimary:${params.action}`);
-    if (params.phase) queryParts.push(`phaseHighest::${params.phase}`);
-    if (params.phase_terminated) queryParts.push(`phaseTerminated::${params.phase_terminated}`);
+    if (params.phase) {
+      // Handle OR and AND conditions in phase
+      const phases = params.phase.split(/\s+(?:OR|AND)\s+/).map(p => p.trim());
+      if (phases.length > 1) {
+        // Check if original string contains OR or AND
+        const operator = params.phase.match(/\s+(OR|AND)\s+/)?.[1] || 'OR';
+        // Handle both formats for each phase
+        const formattedPhases = phases.map(p => {
+          // If it's already in the short format (L, C1, etc)
+          if (/^[A-Z0-9]+$/.test(p)) {
+            return `phaseHighest::${p}`;
+          }
+          // If it's in the descriptive format (launched, etc)
+          return `phaseHighest:${p}`;
+        });
+        queryParts.push(`(${formattedPhases.join(` ${operator} `)})`);
+      } else {
+        // Single phase - handle both formats
+        const phase = phases[0];
+        if (/^[A-Z0-9]+$/.test(phase)) {
+          queryParts.push(`phaseHighest::${phase}`);
+        } else {
+          queryParts.push(`phaseHighest:${phase}`);
+        }
+      }
+    }
+    if (params.phase_terminated) {
+      // Handle OR and AND conditions in phase_terminated
+      const phases = params.phase_terminated.split(/\s+(?:OR|AND)\s+/).map(p => p.trim());
+      if (phases.length > 1) {
+        // Check if original string contains OR or AND
+        const operator = params.phase_terminated.match(/\s+(OR|AND)\s+/)?.[1] || 'OR';
+        // Handle both formats for each phase
+        const formattedPhases = phases.map(p => {
+          // If it's in the short format (DX, etc)
+          if (/^[A-Z0-9]+$/.test(p)) {
+            return `phaseTerminated::${p}`;
+          }
+          // If it's in the descriptive format ("phase 2 Clinical", etc)
+          return `phaseTerminated:"${p}"`;
+        });
+        queryParts.push(`(${formattedPhases.join(` ${operator} `)})`);
+      } else {
+        // Single phase - handle both formats
+        const phase = phases[0];
+        if (/^[A-Z0-9]+$/.test(phase)) {
+          queryParts.push(`phaseTerminated::${phase}`);
+        } else {
+          queryParts.push(`phaseTerminated:"${phase}"`);
+        }
+      }
+    }
     if (params.technology) queryParts.push(`technologies:${params.technology}`);
     if (params.drug_name) queryParts.push(`drugNamesAll:${params.drug_name}`);
     if (params.country) queryParts.push(`LINKED(developmentStatusCountryId:${params.country})`);
