@@ -166,6 +166,71 @@ const GET_DRUG_FINANCIAL_TOOL: Tool = {
   }
 };
 
+const GET_COMPANY_TOOL: Tool = {
+  name: "get_company",
+  description: "Return the entire company record with all available fields for a given identifier from Cortellis API",
+  inputSchema: {
+    type: "object",
+    properties: {
+      id: {
+        type: "string",
+        description: "Company identifier"
+      }
+    },
+    required: ["id"]
+  }
+};
+
+const SEARCH_COMPANIES_TOOL: Tool = {
+  name: "search_companies",
+  description: "Search for companies in the Cortellis database. If the amount of companies returned do not match with the totalResults, ALWAYS use the offset parameter to get the next page(s) of results.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: {
+        type: "string",
+        description: "Raw search query (if you want to use the full Cortellis query syntax directly)"
+      },
+      company_name: {
+        type: "string",
+        description: "Company name to search for (e.g. pfizer)"
+      },
+      hq_country: {
+        type: "string",
+        description: "Company headquarters country (e.g. US)"
+      },
+      deals_count: {
+        type: "string",
+        description: "Count for all distinct deals where the company is a principal or partner. Format: '<20' for less than 20 deals, '20' for greater than 20 deals (default behavior)"
+      },
+      indications: {
+        type: "string",
+        description: "Top 10 indication terms from drugs and patents where company is main assignee (e.g. asthma)"
+      },
+      actions: {
+        type: "string",
+        description: "Top 10 target-based action terms from drugs and patents where company is main assignee (e.g. cyclooxygenase)"
+      },
+      technologies: {
+        type: "string",
+        description: "Top 10 technologies terms from drugs and patents where company is main assignee (e.g. Antibiotic)"
+      },
+      company_size: {
+        type: "string",
+        description: "The size of a company based on the market capitalization in billions USD. Format: '<2' for less than $2B, '2' for greater than $2B (default behavior)"
+      },
+      status: {
+        type: "string",
+        description: "Highest status of the associated drug linked to the company (e.g. launched)"
+      },
+      offset: {
+        type: "number",
+        description: "Starting position in the results (default: 0)"
+      }
+    }
+  }
+};
+
 interface SearchParams {
   query?: string;
   company?: string;
@@ -176,6 +241,19 @@ interface SearchParams {
   technology?: string;
   drug_name?: string;
   country?: string;
+  offset?: number;
+}
+
+interface SearchCompaniesParams {
+  query?: string;
+  company_name?: string;
+  hq_country?: string;
+  deals_count?: string;
+  indications?: string;
+  actions?: string;
+  technologies?: string;
+  company_size?: string;
+  status?: string;
   offset?: number;
 }
 
@@ -196,7 +274,7 @@ function createMcpError(message: string, code: number = -32603): McpError {
   return new McpError(code, message);
 }
 
-async function digestAuth(url: string) {
+async function digestAuth(url: string, method: string = 'GET') {
   try {
     console.log(`Making request to: ${url}`);
     
@@ -224,7 +302,7 @@ async function digestAuth(url: string) {
 
     // Calculate digest components using MD5
     const ha1 = createHash('md5').update(`${USERNAME}:${realm}:${PASSWORD}`).digest('hex');
-    const ha2 = createHash('md5').update(`GET:${fullPath}`).digest('hex');
+    const ha2 = createHash('md5').update(`${method}:${fullPath}`).digest('hex');
     const nc = '00000001';
     const cnonce = Math.random().toString(36).substring(2, 10);
     const digestResponse = createHash('md5')
@@ -238,6 +316,7 @@ async function digestAuth(url: string) {
 
     // Make authenticated request
     const authenticatedResponse = await fetch(url, {
+      method,
       headers: {
         'Authorization': authHeader,
         'Accept': 'application/json'
@@ -291,6 +370,95 @@ async function searchDrugs(params: SearchParams) {
     }],
     isError: false
   };
+}
+
+async function searchCompanies(params: SearchCompaniesParams) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/company-v2/company/search";
+  let query = params.query;
+
+  if (!query) {
+    const queryParts: string[] = [];
+    
+    if (params.company_name) queryParts.push(`companyNameDisplay:${params.company_name}`);
+    if (params.hq_country) queryParts.push(`companyHqCountry:${params.hq_country}`);
+    if (typeof params.deals_count === 'string') {
+      // Parse the deals count string
+      const dealsStr = params.deals_count.trim();
+      let operator = '>';  // Default to greater than
+      let count = dealsStr;
+      
+      if (dealsStr.startsWith('<')) {
+        operator = '<';
+        count = dealsStr.substring(1);
+      } else if (dealsStr.startsWith('>')) {
+        count = dealsStr.substring(1);
+      }
+      
+      // Convert to number
+      const dealsCount = parseInt(count);
+      if (!isNaN(dealsCount)) {
+        queryParts.push(`companyDealsCount:RANGE(${operator}${dealsCount})`);
+      }
+    }
+    if (params.indications) queryParts.push(`companyIndicationsKey:${params.indications}`);
+    if (params.actions) queryParts.push(`companyActionsKey:${params.actions}`);
+    if (params.technologies) queryParts.push(`companyTechnologiesKey:${params.technologies}`);
+    if (typeof params.company_size === 'string') {
+      // Parse the company size string
+      const sizeStr = params.company_size.trim();
+      let operator = '>';  // Default to greater than
+      let size = sizeStr;
+      
+      if (sizeStr.startsWith('<')) {
+        operator = '<';
+        size = sizeStr.substring(1);
+      } else if (sizeStr.startsWith('>')) {
+        size = sizeStr.substring(1);
+      }
+      
+      // Convert billions to actual value
+      const sizeValue = parseFloat(size);
+      if (!isNaN(sizeValue)) {
+        const sizeInActualValue = sizeValue * 1000000000;
+        queryParts.push(`companyCategoryCompanySize:RANGE(${operator}${sizeInActualValue})`);
+      }
+    }
+    if (params.status) queryParts.push(`LINKED(statusLinked:${params.status})`);
+    
+    query = queryParts.length > 0 ? queryParts.join(" AND ") : "*";
+  }
+
+  const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&hits=100&fmt=json`;
+  
+  console.log('Making request to:', url);
+  console.log('Using credentials - Username:', USERNAME, 'Password:', PASSWORD);
+  
+  try {
+    const response = await requestAsync({
+      url,
+      method: 'GET',
+      auth: {
+        user: USERNAME,
+        pass: PASSWORD,
+        sendImmediately: false
+      },
+      json: true
+    });
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(response, null, 2)
+      }],
+      isError: false
+    };
+  } catch (error) {
+    console.error('Error in searchCompanies:', error);
+    throw new McpError(
+      -32603,
+      `API request failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
 async function exploreOntology(category?: string, term?: string): Promise<any> {
@@ -351,6 +519,19 @@ async function getDrugSwot(id: string) {
 
 async function getDrugFinancial(id: string) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/financial";
+  const url = `${baseUrl}/${id}?fmt=json`;
+  const response = await digestAuth(url);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }],
+    isError: false
+  };
+}
+
+async function getCompany(id: string) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/company-v2/company";
   const url = `${baseUrl}/${id}?fmt=json`;
   const response = await digestAuth(url);
   return {
@@ -472,6 +653,34 @@ async function runServer() {
       }
     });
 
+    // Add get_company endpoint
+    app.get('/company/:id', async (req: Request, res: Response) => {
+      try {
+        const result = await getCompany(req.params.id);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
+    // Add search_companies endpoint
+    app.post('/search_companies', async (req: Request, res: Response) => {
+      try {
+        const result = await searchCompanies(req.body);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
     app.listen(PORT, () => {
       console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
     });
@@ -490,7 +699,7 @@ async function runServer() {
     );
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL]
+      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
     }));
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -527,6 +736,40 @@ async function runServer() {
               throw new McpError(-32603, 'Invalid drug identifier');
             }
             return await getDrugFinancial(params.id);
+          case "get_company":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid company identifier');
+            }
+            return await getCompany(params.id);
+          case "search_companies":
+            if (params.query && typeof params.query !== 'string') {
+              throw new McpError(-32603, 'Invalid query parameter');
+            }
+            if (params.company_name && typeof params.company_name !== 'string') {
+              throw new McpError(-32603, 'Invalid company_name parameter');
+            }
+            if (params.hq_country && typeof params.hq_country !== 'string') {
+              throw new McpError(-32603, 'Invalid hq_country parameter');
+            }
+            if (params.deals_count && typeof params.deals_count !== 'string') {
+              throw new McpError(-32603, 'Invalid deals_count parameter');
+            }
+            if (params.indications && typeof params.indications !== 'string') {
+              throw new McpError(-32603, 'Invalid indications parameter');
+            }
+            if (params.actions && typeof params.actions !== 'string') {
+              throw new McpError(-32603, 'Invalid actions parameter');
+            }
+            if (params.technologies && typeof params.technologies !== 'string') {
+              throw new McpError(-32603, 'Invalid technologies parameter');
+            }
+            if (params.company_size && typeof params.company_size !== 'string') {
+              throw new McpError(-32603, 'Invalid company_size parameter');
+            }
+            if (params.status && typeof params.status !== 'string') {
+              throw new McpError(-32603, 'Invalid status parameter');
+            }
+            return await searchCompanies(params as SearchCompaniesParams);
           default:
             throw new McpError(
               -32603,

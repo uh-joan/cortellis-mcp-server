@@ -61,6 +61,31 @@ MCP Server for searching drugs and exploring ontology terms in the Cortellis dat
      - `id` (string) - Drug Identifier
    - Returns: JSON response with financial data and commentary
 
+6. `get_company`
+   - Return the entire company record with all available fields for a given identifier
+   - Required Input:
+     - `id` (string) - Company Identifier
+   - Returns: JSON response with complete company record
+
+7. `search_companies`
+   - Search for companies in the Cortellis database
+   - Optional Inputs:
+     - `query` (string) - Raw search query
+     - `company_name` (string) - Company name to search for
+     - `hq_country` (string) - Company headquarters country
+     - `deals_count` (string) - Count for all distinct deals where company is principal/partner
+       - Format: '<20' for less than 20 deals
+       - Format: '20' or '>20' for greater than 20 deals (default behavior)
+     - `indications` (string) - Top 10 indication terms
+     - `actions` (string) - Top 10 target-based action terms
+     - `technologies` (string) - Top 10 technologies terms
+     - `company_size` (string) - The size of a company based on market capitalization in billions USD
+       - Format: '<2' for less than $2B
+       - Format: '2' or '>2' for greater than $2B (default behavior)
+     - `status` (string) - Highest status of linked drugs
+     - `offset` (number) - For pagination
+   - Returns: JSON response with company information
+
 ## Features
 
 - Direct access to Cortellis drug database
@@ -98,6 +123,15 @@ When running in HTTP mode (USE_HTTP=true), the following REST endpoints are avai
    - Get financial data and forecasts for a drug
    - Parameters:
      - `id`: Drug identifier
+
+6. `GET /company/:id`
+   - Get complete company record by ID
+   - Parameters:
+     - `id`: Company identifier
+
+7. `POST /search_companies`
+   - Search for companies with optional filters
+   - Body: JSON object with search parameters (see `search_companies` tool inputs)
 
 ## Setup
 
