@@ -53,7 +53,43 @@ const SEARCH_DRUGS_TOOL: Tool = {
       },
       phase: {
         type: "string",
-        description: "Overall Highest development status of drug (S: Suspended, DR: Discovery/Preclinical, CU: Clinical unknown, C1-C3: Phase 1-3, PR: Pre-registration, R: Registered, L: Launched, OL: Outlicensed, NDR: No Development Reported, DX: Discontinued, W: Withdrawn)"
+        description: "Overall Highest development status of drug",
+        enum: [
+          "S",   // Suspended
+          "DR",  // Discovery/Preclinical
+          "CU",  // Clinical unknown
+          "C1",  // Phase 1
+          "C2",  // Phase 2
+          "C3",  // Phase 3
+          "PR",  // Pre-registration
+          "R",   // Registered
+          "L",   // Launched
+          "OL",  // Outlicensed
+          "NDR", // No Development Reported
+          "DX",  // Discontinued
+          "W"    // Withdrawn
+        ],
+        enumDescriptions: {
+          "S": "Suspended - Development temporarily halted",
+          "DR": "Discovery/Preclinical - Early stage research",
+          "CU": "Clinical unknown - Clinical stage not specified",
+          "C1": "Phase 1 - Initial human safety trials",
+          "C2": "Phase 2 - Small scale efficacy trials",
+          "C3": "Phase 3 - Large scale efficacy trials",
+          "PR": "Pre-registration - Submitted for approval",
+          "R": "Registered - Approved but not yet launched",
+          "L": "Launched - Available in market",
+          "OL": "Outlicensed - Rights transferred to another company",
+          "NDR": "No Development Reported - No recent updates",
+          "DX": "Discontinued - Development stopped",
+          "W": "Withdrawn - Removed from market"
+        },
+        examples: [
+          "C3",
+          "C3 OR PR",
+          "C1 AND C2"
+        ],
+        format: "Can use OR/AND operators for multiple phases"
       },
       phase_terminated: {
         type: "string",
@@ -74,9 +110,31 @@ const SEARCH_DRUGS_TOOL: Tool = {
       offset: {
         type: "number",
         description: "Starting position in the results (default: 0)"
+      },
+      company_size: {
+        type: "string",
+        description: "The size of a company based on market capitalization in billions USD",
+        format: "'<X' for less than $XB, 'X' for greater than $XB",
+        examples: ["<2", "2"],
+        notes: "Values are in billions USD"
       }
     }
-  }
+  },
+  examples: [
+    {
+      description: "Search for Phase 3 obesity drugs",
+      usage: `{
+        "phase": "C3",
+        "indication": "obesity"
+      }`
+    },
+    {
+      description: "Search for drugs in Phase 3 OR Pre-registration",
+      usage: `{
+        "phase": "C3 OR PR"
+      }`
+    }
+  ]
 };
 
 const EXPLORE_ONTOLOGY_TOOL: Tool = {
@@ -87,38 +145,70 @@ const EXPLORE_ONTOLOGY_TOOL: Tool = {
     properties: {
       term: {
         type: "string",
-        description: "Generic search term (used only if no specific category is provided)"
+        description: "Generic search term (used only if no specific category is provided)",
+        examples: ["GLP-1", "obesity", "diabetes"]
       },
       category: {
         type: "string",
-        description: "Category to search within (action, indication, company, drug_name, target, technology)"
+        description: "Category to search within",
+        enum: [
+          "action",
+          "indication", 
+          "company",
+          "drug_name",
+          "target",
+          "technology"
+        ],
+        enumDescriptions: {
+          "action": "Drug mechanism of action or molecular target",
+          "indication": "Disease or condition the drug treats",
+          "company": "Organizations developing drugs",
+          "drug_name": "Names of drug compounds",
+          "target": "Biological targets of drugs",
+          "technology": "Drug development technologies and platforms"
+        }
       },
       action: {
         type: "string",
-        description: "Target specific action of the drug (e.g. glucagon, GLP-1)"
+        description: "Target specific action of the drug",
+        examples: ["glucagon", "GLP-1", "insulin receptor agonist"]
       },
       indication: {
         type: "string",
-        description: "Active indications of a drug (e.g. obesity, cancer)"
+        description: "Active indications of a drug",
+        examples: ["obesity", "diabetes", "NASH"]
       },
       company: {
         type: "string",
-        description: "Active companies developing drugs"
+        description: "Active companies developing drugs",
+        examples: ["Novo Nordisk", "Eli Lilly", "Pfizer"]
       },
       drug_name: {
         type: "string",
-        description: "Drug name to search"
+        description: "Drug name to search",
+        examples: ["semaglutide", "tirzepatide"]
       },
       target: {
         type: "string",
-        description: "Target of the drug"
+        description: "Target of the drug",
+        examples: ["GLP-1 receptor", "insulin receptor"]
       },
       technology: {
         type: "string",
-        description: "Technologies used in drug development"
+        description: "Technologies used in drug development",
+        examples: ["small molecule", "monoclonal antibody", "peptide"]
       }
     }
-  }
+  },
+  examples: [
+    {
+      description: "Search for GLP-1 related actions",
+      usage: `{
+        "category": "action",
+        "term": "GLP-1"
+      }`
+    }
+  ]
 };
 
 const GET_DRUG_TOOL: Tool = {
@@ -129,11 +219,34 @@ const GET_DRUG_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Drug Identifier from Cortellis database",
+        examples: ["93910", "143520"]
       }
     },
     required: ["id"]
-  }
+  },
+  returnSchema: {
+    description: "Returns comprehensive drug information including:",
+    fields: [
+      "Drug synonyms and alternative names",
+      "Company originator and development companies",
+      "Current development status and history",
+      "Primary and secondary indications",
+      "Mechanism of action",
+      "Technology platforms",
+      "Patent information",
+      "Clinical trial information",
+      "Regulatory designations"
+    ]
+  },
+  examples: [
+    {
+      description: "Get complete information for Cagrilintide",
+      usage: `{
+        "id": "93910"
+      }`
+    }
+  ]
 };
 
 const GET_DRUG_SWOT_TOOL: Tool = {
@@ -144,11 +257,29 @@ const GET_DRUG_SWOT_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Drug Identifier from Cortellis database",
+        examples: ["93910", "143520"]
       }
     },
     required: ["id"]
-  }
+  },
+  returnSchema: {
+    description: "Returns detailed SWOT analysis including:",
+    fields: [
+      "Strengths: Key advantages and positive attributes",
+      "Weaknesses: Limitations and challenges",
+      "Opportunities: Market potential and growth areas",
+      "Threats: Competition and market risks"
+    ]
+  },
+  examples: [
+    {
+      description: "Get SWOT analysis for a specific drug",
+      usage: `{
+        "id": "93910"
+      }`
+    }
+  ]
 };
 
 const GET_DRUG_FINANCIAL_TOOL: Tool = {
@@ -159,11 +290,30 @@ const GET_DRUG_FINANCIAL_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Drug Identifier from Cortellis database",
+        examples: ["93910", "143520"]
       }
     },
     required: ["id"]
-  }
+  },
+  returnSchema: {
+    description: "Returns comprehensive financial data including:",
+    fields: [
+      "Historical sales data",
+      "Sales forecasts and projections",
+      "Market analysis and commentary",
+      "Regional sales breakdown",
+      "Analyst consensus estimates"
+    ]
+  },
+  examples: [
+    {
+      description: "Get financial data for a specific drug",
+      usage: `{
+        "id": "93910"
+      }`
+    }
+  ]
 };
 
 const GET_COMPANY_TOOL: Tool = {
@@ -174,11 +324,33 @@ const GET_COMPANY_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Company identifier"
+        description: "Company identifier from Cortellis database",
+        examples: ["12345", "67890"]
       }
     },
     required: ["id"]
-  }
+  },
+  returnSchema: {
+    description: "Returns comprehensive company information including:",
+    fields: [
+      "Company overview and history",
+      "Drug pipeline information",
+      "Development partnerships",
+      "Licensing deals",
+      "Patent portfolio",
+      "Financial information",
+      "Key personnel",
+      "Research focus areas"
+    ]
+  },
+  examples: [
+    {
+      description: "Get complete company information",
+      usage: `{
+        "id": "12345"
+      }`
+    }
+  ]
 };
 
 const SEARCH_COMPANIES_TOOL: Tool = {
@@ -189,46 +361,78 @@ const SEARCH_COMPANIES_TOOL: Tool = {
     properties: {
       query: {
         type: "string",
-        description: "Raw search query (if you want to use the full Cortellis query syntax directly)"
+        description: "Raw search query using Cortellis query syntax",
+        examples: ["companyNameDisplay:pfizer", "companyHqCountry:US AND companyDealsCount:RANGE(>20)"]
       },
       company_name: {
         type: "string",
-        description: "Company name to search for (e.g. pfizer)"
+        description: "Company name to search for",
+        examples: ["pfizer", "novartis"]
       },
       hq_country: {
         type: "string",
-        description: "Company headquarters country (e.g. US)"
+        description: "Company headquarters country",
+        examples: ["US", "CH", "DK"],
+        format: "Two-letter country code"
       },
       deals_count: {
         type: "string",
-        description: "Count for all distinct deals where the company is a principal or partner. Format: '<20' for less than 20 deals, '20' for greater than 20 deals (default behavior)"
+        description: "Count for all distinct deals where company is principal/partner",
+        format: "'<X' for less than X deals, 'X' for greater than X deals",
+        examples: ["<20", "20", ">50"]
       },
       indications: {
         type: "string",
-        description: "Top 10 indication terms from drugs and patents where company is main assignee (e.g. asthma)"
+        description: "Top 10 indication terms from company's drugs/patents",
+        examples: ["diabetes", "obesity", "oncology"]
       },
       actions: {
         type: "string",
-        description: "Top 10 target-based action terms from drugs and patents where company is main assignee (e.g. cyclooxygenase)"
+        description: "Top 10 target-based action terms from company's portfolio",
+        examples: ["GLP-1", "SGLT2", "PD-1"]
       },
       technologies: {
         type: "string",
-        description: "Top 10 technologies terms from drugs and patents where company is main assignee (e.g. Antibiotic)"
+        description: "Top 10 technologies terms from company's portfolio",
+        examples: ["Antibody", "Small molecule", "Cell therapy"]
       },
       company_size: {
         type: "string",
-        description: "The size of a company based on the market capitalization in billions USD. Format: '<2' for less than $2B, '2' for greater than $2B (default behavior)"
+        description: "Company size based on market cap (billions USD)",
+        format: "'<X' for less than $XB, 'X' for greater than $XB",
+        examples: ["<2", "2", ">10"]
       },
       status: {
         type: "string",
-        description: "Highest status of the associated drug linked to the company (e.g. launched)"
+        description: "Highest status of associated drugs",
+        enum: ["launched", "phase 3", "phase 2", "phase 1", "preclinical"],
+        examples: ["launched", "phase 3"]
       },
       offset: {
         type: "number",
-        description: "Starting position in the results (default: 0)"
+        description: "Starting position for pagination",
+        default: 0,
+        examples: [0, 100, 200]
       }
     }
-  }
+  },
+  examples: [
+    {
+      description: "Search for large US companies with many deals",
+      usage: `{
+        "hq_country": "US",
+        "company_size": "10",
+        "deals_count": "50"
+      }`
+    },
+    {
+      description: "Search for companies working on GLP-1 drugs",
+      usage: `{
+        "actions": "GLP-1",
+        "status": "phase 3"
+      }`
+    }
+  ]
 };
 
 interface SearchParams {
