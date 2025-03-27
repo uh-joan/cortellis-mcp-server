@@ -15,13 +15,13 @@
     "access": "public"
   },
   "bin": {
-    "mcp-server-cortellis": "dist/index.js"
+    "mcp-server-cortellis": "./dist/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x dist/*.js",
+    "build": "tsc && chmod +x dist/index.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "start": "node -r dotenv/config dist/index.js"
