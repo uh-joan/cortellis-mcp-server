@@ -219,34 +219,11 @@ const GET_DRUG_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier from Cortellis database",
-        examples: ["93910", "143520"]
+        description: "Drug Identifier"
       }
     },
     required: ["id"]
-  },
-  returnSchema: {
-    description: "Returns comprehensive drug information including:",
-    fields: [
-      "Drug synonyms and alternative names",
-      "Company originator and development companies",
-      "Current development status and history",
-      "Primary and secondary indications",
-      "Mechanism of action",
-      "Technology platforms",
-      "Patent information",
-      "Clinical trial information",
-      "Regulatory designations"
-    ]
-  },
-  examples: [
-    {
-      description: "Get complete information for Cagrilintide",
-      usage: `{
-        "id": "93910"
-      }`
-    }
-  ]
+  }
 };
 
 const GET_DRUG_SWOT_TOOL: Tool = {
@@ -257,29 +234,11 @@ const GET_DRUG_SWOT_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier from Cortellis database",
-        examples: ["93910", "143520"]
+        description: "Drug Identifier"
       }
     },
     required: ["id"]
-  },
-  returnSchema: {
-    description: "Returns detailed SWOT analysis including:",
-    fields: [
-      "Strengths: Key advantages and positive attributes",
-      "Weaknesses: Limitations and challenges",
-      "Opportunities: Market potential and growth areas",
-      "Threats: Competition and market risks"
-    ]
-  },
-  examples: [
-    {
-      description: "Get SWOT analysis for a specific drug",
-      usage: `{
-        "id": "93910"
-      }`
-    }
-  ]
+  }
 };
 
 const GET_DRUG_FINANCIAL_TOOL: Tool = {
@@ -290,30 +249,11 @@ const GET_DRUG_FINANCIAL_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier from Cortellis database",
-        examples: ["93910", "143520"]
+        description: "Drug Identifier"
       }
     },
     required: ["id"]
-  },
-  returnSchema: {
-    description: "Returns comprehensive financial data including:",
-    fields: [
-      "Historical sales data",
-      "Sales forecasts and projections",
-      "Market analysis and commentary",
-      "Regional sales breakdown",
-      "Analyst consensus estimates"
-    ]
-  },
-  examples: [
-    {
-      description: "Get financial data for a specific drug",
-      usage: `{
-        "id": "93910"
-      }`
-    }
-  ]
+  }
 };
 
 const GET_COMPANY_TOOL: Tool = {
@@ -324,33 +264,11 @@ const GET_COMPANY_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Company identifier from Cortellis database",
-        examples: ["12345", "67890"]
+        description: "Company identifier"
       }
     },
     required: ["id"]
-  },
-  returnSchema: {
-    description: "Returns comprehensive company information including:",
-    fields: [
-      "Company overview and history",
-      "Drug pipeline information",
-      "Development partnerships",
-      "Licensing deals",
-      "Patent portfolio",
-      "Financial information",
-      "Key personnel",
-      "Research focus areas"
-    ]
-  },
-  examples: [
-    {
-      description: "Get complete company information",
-      usage: `{
-        "id": "12345"
-      }`
-    }
-  ]
+  }
 };
 
 const SEARCH_COMPANIES_TOOL: Tool = {
@@ -361,78 +279,46 @@ const SEARCH_COMPANIES_TOOL: Tool = {
     properties: {
       query: {
         type: "string",
-        description: "Raw search query using Cortellis query syntax",
-        examples: ["companyNameDisplay:pfizer", "companyHqCountry:US AND companyDealsCount:RANGE(>20)"]
+        description: "Raw search query (if you want to use the full Cortellis query syntax directly)"
       },
       company_name: {
         type: "string",
-        description: "Company name to search for",
-        examples: ["pfizer", "novartis"]
+        description: "Company name to search for (e.g. pfizer)"
       },
       hq_country: {
         type: "string",
-        description: "Company headquarters country",
-        examples: ["US", "CH", "DK"],
-        format: "Two-letter country code"
+        description: "Company headquarters country (e.g. US)"
       },
       deals_count: {
         type: "string",
-        description: "Count for all distinct deals where company is principal/partner",
-        format: "'<X' for less than X deals, 'X' for greater than X deals",
-        examples: ["<20", "20", ">50"]
+        description: "Count for all distinct deals where the company is a principal or partner. Format: '<20' for less than 20 deals, '20' for greater than 20 deals (default behavior)"
       },
       indications: {
         type: "string",
-        description: "Top 10 indication terms from company's drugs/patents",
-        examples: ["diabetes", "obesity", "oncology"]
+        description: "Top 10 indication terms from drugs and patents where company is main assignee (e.g. asthma)"
       },
       actions: {
         type: "string",
-        description: "Top 10 target-based action terms from company's portfolio",
-        examples: ["GLP-1", "SGLT2", "PD-1"]
+        description: "Top 10 target-based action terms from drugs and patents where company is main assignee (e.g. cyclooxygenase)"
       },
       technologies: {
         type: "string",
-        description: "Top 10 technologies terms from company's portfolio",
-        examples: ["Antibody", "Small molecule", "Cell therapy"]
+        description: "Top 10 technologies terms from drugs and patents where company is main assignee (e.g. Antibiotic)"
       },
       company_size: {
         type: "string",
-        description: "Company size based on market cap (billions USD)",
-        format: "'<X' for less than $XB, 'X' for greater than $XB",
-        examples: ["<2", "2", ">10"]
+        description: "The size of a company based on the market capitalization in billions USD. Format: '<2' for less than $2B, '2' for greater than $2B (default behavior)"
       },
       status: {
         type: "string",
-        description: "Highest status of associated drugs",
-        enum: ["launched", "phase 3", "phase 2", "phase 1", "preclinical"],
-        examples: ["launched", "phase 3"]
+        description: "Highest status of the associated drug linked to the company (e.g. launched)"
       },
       offset: {
         type: "number",
-        description: "Starting position for pagination",
-        default: 0,
-        examples: [0, 100, 200]
+        description: "Starting position in the results (default: 0)"
       }
     }
-  },
-  examples: [
-    {
-      description: "Search for large US companies with many deals",
-      usage: `{
-        "hq_country": "US",
-        "company_size": "10",
-        "deals_count": "50"
-      }`
-    },
-    {
-      description: "Search for companies working on GLP-1 drugs",
-      usage: `{
-        "actions": "GLP-1",
-        "status": "phase 3"
-      }`
-    }
-  ]
+  }
 };
 
 interface SearchParams {
@@ -798,6 +684,50 @@ async function getCompany(id: string) {
 }
 
 async function runServer() {
+  // Check for --list-tools flag
+  if (process.argv.includes('--list-tools')) {
+    console.log(JSON.stringify({
+      tools: [
+        {
+          name: SEARCH_DRUGS_TOOL.name,
+          description: SEARCH_DRUGS_TOOL.description,
+          schema: SEARCH_DRUGS_TOOL.inputSchema?.properties ? Object.keys(SEARCH_DRUGS_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: EXPLORE_ONTOLOGY_TOOL.name,
+          description: EXPLORE_ONTOLOGY_TOOL.description,
+          schema: EXPLORE_ONTOLOGY_TOOL.inputSchema?.properties ? Object.keys(EXPLORE_ONTOLOGY_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: GET_DRUG_TOOL.name,
+          description: GET_DRUG_TOOL.description,
+          schema: GET_DRUG_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: GET_DRUG_SWOT_TOOL.name,
+          description: GET_DRUG_SWOT_TOOL.description,
+          schema: GET_DRUG_SWOT_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_SWOT_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: GET_DRUG_FINANCIAL_TOOL.name,
+          description: GET_DRUG_FINANCIAL_TOOL.description,
+          schema: GET_DRUG_FINANCIAL_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_FINANCIAL_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: GET_COMPANY_TOOL.name,
+          description: GET_COMPANY_TOOL.description,
+          schema: GET_COMPANY_TOOL.inputSchema?.properties ? Object.keys(GET_COMPANY_TOOL.inputSchema.properties) : []
+        },
+        {
+          name: SEARCH_COMPANIES_TOOL.name,
+          description: SEARCH_COMPANIES_TOOL.description,
+          schema: SEARCH_COMPANIES_TOOL.inputSchema?.properties ? Object.keys(SEARCH_COMPANIES_TOOL.inputSchema.properties) : []
+        }
+      ]
+    }, null, 2));
+    return;
+  }
+
   if (USE_HTTP) {
     const app = express();
     app.use(express.json());
