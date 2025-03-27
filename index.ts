@@ -17,6 +17,17 @@ import { createHash } from 'crypto';
 import request from 'request';
 import { promisify } from 'util';
 
+// Add type definitions at the top of the file, after the imports
+interface SchemaProperty {
+  type: string;
+  description: string;
+  enum?: string[];
+  enumDescriptions?: { [key: string]: string };
+  examples?: string[];
+  format?: string;
+  notes?: string;
+}
+
 // API credentials from environment variables
 const USERNAME = process.env.CORTELLIS_USERNAME || '';
 const PASSWORD = process.env.CORTELLIS_PASSWORD || '';
@@ -686,45 +697,80 @@ async function getCompany(id: string) {
 async function runServer() {
   // Check for --list-tools flag
   if (process.argv.includes('--list-tools')) {
-    console.log(JSON.stringify({
-      tools: [
-        {
-          name: SEARCH_DRUGS_TOOL.name,
-          description: SEARCH_DRUGS_TOOL.description,
-          schema: SEARCH_DRUGS_TOOL.inputSchema?.properties ? Object.keys(SEARCH_DRUGS_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: EXPLORE_ONTOLOGY_TOOL.name,
-          description: EXPLORE_ONTOLOGY_TOOL.description,
-          schema: EXPLORE_ONTOLOGY_TOOL.inputSchema?.properties ? Object.keys(EXPLORE_ONTOLOGY_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: GET_DRUG_TOOL.name,
-          description: GET_DRUG_TOOL.description,
-          schema: GET_DRUG_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: GET_DRUG_SWOT_TOOL.name,
-          description: GET_DRUG_SWOT_TOOL.description,
-          schema: GET_DRUG_SWOT_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_SWOT_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: GET_DRUG_FINANCIAL_TOOL.name,
-          description: GET_DRUG_FINANCIAL_TOOL.description,
-          schema: GET_DRUG_FINANCIAL_TOOL.inputSchema?.properties ? Object.keys(GET_DRUG_FINANCIAL_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: GET_COMPANY_TOOL.name,
-          description: GET_COMPANY_TOOL.description,
-          schema: GET_COMPANY_TOOL.inputSchema?.properties ? Object.keys(GET_COMPANY_TOOL.inputSchema.properties) : []
-        },
-        {
-          name: SEARCH_COMPANIES_TOOL.name,
-          description: SEARCH_COMPANIES_TOOL.description,
-          schema: SEARCH_COMPANIES_TOOL.inputSchema?.properties ? Object.keys(SEARCH_COMPANIES_TOOL.inputSchema.properties) : []
-        }
-      ]
-    }, null, 2));
+    console.log(JSON.stringify([
+      {
+        name: SEARCH_DRUGS_TOOL.name,
+        description: SEARCH_DRUGS_TOOL.description,
+        schema: Object.entries(SEARCH_DRUGS_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description,
+          ...((prop as SchemaProperty).enum ? { enum: (prop as SchemaProperty).enum } : {}),
+          ...((prop as SchemaProperty).enumDescriptions ? { enumDescriptions: (prop as SchemaProperty).enumDescriptions } : {}),
+          ...((prop as SchemaProperty).examples ? { examples: (prop as SchemaProperty).examples } : {}),
+          ...((prop as SchemaProperty).format ? { format: (prop as SchemaProperty).format } : {}),
+          ...((prop as SchemaProperty).notes ? { notes: (prop as SchemaProperty).notes } : {})
+        }))
+      },
+      {
+        name: EXPLORE_ONTOLOGY_TOOL.name,
+        description: EXPLORE_ONTOLOGY_TOOL.description,
+        schema: Object.entries(EXPLORE_ONTOLOGY_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description,
+          ...((prop as SchemaProperty).enum ? { enum: (prop as SchemaProperty).enum } : {}),
+          ...((prop as SchemaProperty).enumDescriptions ? { enumDescriptions: (prop as SchemaProperty).enumDescriptions } : {}),
+          ...((prop as SchemaProperty).examples ? { examples: (prop as SchemaProperty).examples } : {})
+        }))
+      },
+      {
+        name: GET_DRUG_TOOL.name,
+        description: GET_DRUG_TOOL.description,
+        schema: Object.entries(GET_DRUG_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description
+        }))
+      },
+      {
+        name: GET_DRUG_SWOT_TOOL.name,
+        description: GET_DRUG_SWOT_TOOL.description,
+        schema: Object.entries(GET_DRUG_SWOT_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description
+        }))
+      },
+      {
+        name: GET_DRUG_FINANCIAL_TOOL.name,
+        description: GET_DRUG_FINANCIAL_TOOL.description,
+        schema: Object.entries(GET_DRUG_FINANCIAL_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description
+        }))
+      },
+      {
+        name: GET_COMPANY_TOOL.name,
+        description: GET_COMPANY_TOOL.description,
+        schema: Object.entries(GET_COMPANY_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description
+        }))
+      },
+      {
+        name: SEARCH_COMPANIES_TOOL.name,
+        description: SEARCH_COMPANIES_TOOL.description,
+        schema: Object.entries(SEARCH_COMPANIES_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description,
+          ...((prop as SchemaProperty).format ? { format: (prop as SchemaProperty).format } : {})
+        }))
+      }
+    ], null, 2));
     return;
   }
 
