@@ -1,5 +1,5 @@
 {
-  "name": "@uh-joan/mcp-server-cortellis",
+  "name": "@uh-joan/cortellis-mcp-server",
   "version": "0.1.0",
   "description": "MCP server for Cortellis drug database search and ontology exploration",
   "license": "MIT",
@@ -7,12 +7,12 @@
   "author": "Joan Saez-Pons (https://github.com/uh-joan)",
   "repository": {
     "type": "git",
-    "url": "https://github.com/uh-joan/mcp-server-cortellis.git"
+    "url": "https://github.com/uh-joan/cortellis-mcp-server.git"
   },
   "bugs": {
-    "url": "https://github.com/uh-joan/mcp-server-cortellis/issues"
+    "url": "https://github.com/uh-joan/cortellis-mcp-server/issues"
   },
-  "homepage": "https://github.com/uh-joan/mcp-server-cortellis#readme",
+  "homepage": "https://github.com/uh-joan/cortellis-mcp-server#readme",
   "keywords": [
     "mcp",
     "cortellis",
@@ -25,7 +25,7 @@
     "access": "public"
   },
   "bin": {
-    "mcp-server-cortellis": "./dist/index.js"
+    "cortellis-mcp-server": "./dist/index.js"
   },
   "files": [
     "dist",

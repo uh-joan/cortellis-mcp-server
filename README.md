@@ -6,7 +6,7 @@ MCP Server for searching drugs and exploring ontology terms in the Cortellis dat
 
 ```bash
 # Using npm
-npm install @uh-joan/mcp-server-cortellis
+npm install @uh-joan/cortellis-mcp-server
 ```
 
 ## Quick Start
@@ -22,10 +22,10 @@ PORT=3000      # Optional: specify port for HTTP server
 2. Run the server:
 ```bash
 # As MCP server
-npx mcp-server-cortellis
+npx cortellis-mcp-server
 
 # As HTTP server
-USE_HTTP=true PORT=3000 npx mcp-server-cortellis
+USE_HTTP=true PORT=3000 npx cortellis-mcp-server
 ```
 
 ## Tools
@@ -198,7 +198,7 @@ Before starting make sure [Node.js](https://nodejs.org/) is installed on your de
       "command": "npx",
       "args": [
         "-y",
-        "@uh-joan/mcp-server-cortellis"
+        "@uh-joan/cortellis-mcp-server"
       ],
       "env": {
         "CORTELLIS_USERNAME": "your_username",
@@ -214,8 +214,8 @@ Before starting make sure [Node.js](https://nodejs.org/) is installed on your de
 ## Build (for devs)
 
 ```bash
-git clone https://github.com/uh-joan/mcp-server-cortellis.git
-cd mcp-server-cortellis
+git clone https://github.com/uh-joan/cortellis-mcp-server.git
+cd cortellis-mcp-server
 npm install
 npm run build
 ```
@@ -235,8 +235,8 @@ npm run start
 ## Docker
 
 ```bash
-docker build -t mcp-server-cortellis .
-docker run -i --env-file .env mcp-server-cortellis
+docker build -t cortellis-mcp-server .
+docker run -i --env-file .env cortellis-mcp-server
 ```
 
 ## License
@@ -255,4 +255,4 @@ Contributions are welcome! Please feel free to submit a Pull Request. For major 
 
 ## Versioning
 
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/uh-joan/mcp-server-cortellis/tags).
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/uh-joan/cortellis-mcp-server/tags).
