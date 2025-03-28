@@ -1,11 +1,48 @@
-export function cleanObject(obj: any) {
-  Object.keys(obj).forEach(key => {
-    if (!obj[key] || key === "__typename") {
-      delete obj[key];
-    } else if (typeof obj[key] === "object") {
-      cleanObject(obj[key]);
+import { McpError } from "@modelcontextprotocol/sdk/types.js";
+
+// Define more specific types
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonArray = JsonValue[];
+export type JsonObject = { [key: string]: JsonValue };
+export type JsonValue = JsonPrimitive | JsonArray | JsonObject;
+
+/**
+ * Removes null and undefined values from an object
+ */
+export function cleanObject<T extends JsonObject>(obj: T): Partial<T> {
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    if (value !== null && value !== undefined) {
+      acc[key as keyof T] = value as T[keyof T];
     }
-  });
+    return acc;
+  }, {} as Partial<T>);
+}
+
+/**
+ * Deep cleans an object or array of null and undefined values
+ */
+export function deepCleanObject<T extends JsonValue>(obj: T): T {
+  if (Array.isArray(obj)) {
+    return obj.map(item => deepCleanObject(item)) as T;
+  }
+  
+  if (obj && typeof obj === 'object') {
+    return Object.entries(obj).reduce((acc, [key, value]) => {
+      if (value !== null && value !== undefined) {
+        acc[key] = deepCleanObject(value);
+      }
+      return acc;
+    }, {} as JsonObject) as T;
+  }
+  
+  return obj;
+}
+
+/**
+ * Creates a standardized error object
+ */
+export function createError(message: string, code: number = 500): McpError {
+  return new McpError(code, message);
 }
 
 export function pickBySchema(obj: any, schema: any): any {

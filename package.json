@@ -1,15 +1,25 @@
 {
   "name": "@uh-joan/mcp-server-cortellis",
-  "version": "0.3.3",
+  "version": "0.1.0",
   "description": "MCP server for Cortellis drug database search and ontology exploration",
   "license": "MIT",
   "type": "module",
   "author": "Joan Saez-Pons (https://github.com/uh-joan)",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/uh-joan/mcp-server-cortellis.git"
+  },
+  "bugs": {
+    "url": "https://github.com/uh-joan/mcp-server-cortellis/issues"
+  },
+  "homepage": "https://github.com/uh-joan/mcp-server-cortellis#readme",
   "keywords": [
     "mcp",
     "cortellis",
     "drug-database",
-    "pharmaceutical"
+    "pharmaceutical",
+    "api",
+    "server"
   ],
   "publishConfig": {
     "access": "public"
@@ -18,27 +28,40 @@
     "mcp-server-cortellis": "./dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "README.md",
+    "LICENSE",
+    "types"
   ],
   "scripts": {
     "build": "tsc && chmod +x dist/index.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
-    "start": "node -r dotenv/config dist/index.js"
+    "start": "node -r dotenv/config dist/index.js",
+    "prepublishOnly": "npm run check-publish",
+    "check-publish": "npm run lint && npm run build && node scripts/check-publish.js",
+    "lint": "eslint . --ext .ts",
+    "lint:fix": "eslint . --ext .ts --fix",
+    "clean": "rm -rf dist coverage *.tgz",
+    "test": "echo \"No tests specified yet\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
-    "node-fetch": "^3.3.2",
-    "request": "^2.88.2"
+    "node-fetch": "^3.3.2"
   },
   "devDependencies": {
     "@types/express": "^4.17.21",
-    "@types/node": "^22.13.9",
+    "@types/node": "^20.17.28",
     "@types/node-fetch": "^2.6.12",
-    "@types/request": "^2.48.12",
+    "@typescript-eslint/eslint-plugin": "^7.3.1",
+    "@typescript-eslint/parser": "^7.3.1",
+    "eslint": "^8.57.0",
     "shx": "^0.3.4",
-    "typescript": "^5.8.2"
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
   }
 }

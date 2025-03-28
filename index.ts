@@ -6,16 +6,13 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
   Tool,
-  McpError,
-  ErrorCode,
+  McpError
 } from "@modelcontextprotocol/sdk/types.js";
-import { cleanObject } from "./util.js";
+import { createError, JsonValue } from "./util.js";
 import fetch from 'node-fetch';
-import express, { Request, Response } from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import 'dotenv/config';
 import { createHash } from 'crypto';
-import request from 'request';
-import { promisify } from 'util';
 
 // Add type definitions at the top of the file, after the imports
 interface SchemaProperty {
@@ -369,75 +366,126 @@ interface OntologyParams {
   technology?: string;
 }
 
-const requestAsync = promisify(request);
-
 function createMcpError(message: string, code: number = -32603): McpError {
   return new McpError(code, message);
 }
 
-async function digestAuth(url: string, method: string = 'GET') {
+async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValue> {
   try {
-    console.log(`Making request to: ${url}`);
+    console.log(`[digestAuth] Starting request to: ${url}`);
+    console.log(`[digestAuth] Using method: ${method}`);
+    console.log(`[digestAuth] Using credentials - Username: ${USERNAME}, Password: ${PASSWORD ? '***' : 'not set'}`);
     
-    // First request to get the WWW-Authenticate header
-    const initialResponse = await fetch(url);
-    const wwwAuth = initialResponse.headers.get('www-authenticate');
-    if (!wwwAuth) {
+    // First request to get the nonce
+    console.log('[digestAuth] Making initial request to get WWW-Authenticate header');
+    const response = await fetch(url, {
+      method,
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Cortellis API Client'
+      }
+    });
+
+    // Get WWW-Authenticate header
+    const authHeader = response.headers.get('www-authenticate');
+    console.log('[digestAuth] WWW-Authenticate header:', authHeader);
+    
+    if (!authHeader) {
       throw new Error('No WWW-Authenticate header received');
     }
 
     // Parse WWW-Authenticate header
-    const realm = wwwAuth.match(/realm="([^"]+)"/)?.[1];
-    const nonce = wwwAuth.match(/nonce="([^"]+)"/)?.[1];
-    const qop = wwwAuth.match(/qop="([^"]+)"/)?.[1] || 'auth';
+    const realm = authHeader.match(/realm="([^"]+)"/)?.[1];
+    const nonce = authHeader.match(/nonce="([^"]+)"/)?.[1];
+    const qop = authHeader.match(/qop="([^"]+)"/)?.[1]; // Optional
+    const stale = authHeader.match(/stale="([^"]+)"/)?.[1]; // Optional
     
+    console.log('[digestAuth] Parsed auth parameters:', { realm, nonce, qop, stale });
+
     if (!realm || !nonce) {
-      throw new Error('Invalid WWW-Authenticate header');
+      throw new Error('Invalid WWW-Authenticate header - missing realm or nonce');
     }
 
-    console.log('WWW-Authenticate header:', wwwAuth);
+    // Generate cnonce and nc only if qop is specified
+    let cnonce, nc, digestResponse;
+    
+    if (qop) {
+      // If qop is specified, use RFC 2617 algorithm
+      cnonce = Math.random().toString(36).substring(2);
+      nc = '00000001';
+      console.log('[digestAuth] Generated values:', { cnonce, nc });
 
-    // Get the full URL path including query parameters
-    const urlObj = new URL(url);
-    const fullPath = urlObj.pathname + urlObj.search;
+      // Calculate hashes
+      const ha1 = createHash('md5')
+        .update(`${USERNAME}:${realm}:${PASSWORD}`)
+        .digest('hex');
+      
+      const ha2 = createHash('md5')
+        .update(`${method}:${url}`)
+        .digest('hex');
+      
+      const response_value = createHash('md5')
+        .update(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
+        .digest('hex');
 
-    // Calculate digest components using MD5
-    const ha1 = createHash('md5').update(`${USERNAME}:${realm}:${PASSWORD}`).digest('hex');
-    const ha2 = createHash('md5').update(`${method}:${fullPath}`).digest('hex');
-    const nc = '00000001';
-    const cnonce = Math.random().toString(36).substring(2, 10);
-    const digestResponse = createHash('md5')
-      .update(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
-      .digest('hex');
+      console.log('[digestAuth] Calculated hashes:', { ha1: '***', ha2, response_value });
 
-    // Build authorization header with full path
-    const authHeader = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${fullPath}", qop="${qop}", nc=${nc}, cnonce="${cnonce}", response="${digestResponse}", algorithm=MD5, digest="${digestResponse}"`;
+      // Construct Authorization header with qop
+      digestResponse = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${url}", qop=${qop}, nc=${nc}, cnonce="${cnonce}", response="${response_value}", algorithm="MD5"`;
+    } else {
+      // If no qop, use RFC 2069 algorithm
+      const ha1 = createHash('md5')
+        .update(`${USERNAME}:${realm}:${PASSWORD}`)
+        .digest('hex');
+      
+      const ha2 = createHash('md5')
+        .update(`${method}:${url}`)
+        .digest('hex');
+      
+      const response_value = createHash('md5')
+        .update(`${ha1}:${nonce}:${ha2}`)
+        .digest('hex');
 
-    console.log('Authorization header:', authHeader);
+      console.log('[digestAuth] Calculated hashes (no qop):', { ha1: '***', ha2, response_value });
+
+      // Construct Authorization header without qop
+      digestResponse = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${url}", response="${response_value}", algorithm="MD5"`;
+    }
+
+    console.log('[digestAuth] Authorization header:', digestResponse);
 
     // Make authenticated request
+    console.log('[digestAuth] Making authenticated request');
     const authenticatedResponse = await fetch(url, {
       method,
       headers: {
-        'Authorization': authHeader,
-        'Accept': 'application/json'
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'User-Agent': 'Cortellis API Client',
+        'Authorization': digestResponse
       }
     });
 
-    console.log(`Response status: ${authenticatedResponse.status}`);
-    console.log(`Response headers: ${JSON.stringify(authenticatedResponse.headers.raw(), null, 2)}`);
+    console.log('[digestAuth] Response status:', authenticatedResponse.status);
+    console.log('[digestAuth] Response headers:', JSON.stringify(authenticatedResponse.headers.raw(), null, 2));
+    
     const text = await authenticatedResponse.text();
-    console.log(`Response body: ${text}`);
+    console.log('[digestAuth] Response body:', text);
 
     if (!authenticatedResponse.ok) {
       throw new Error(`Request failed with status code: ${authenticatedResponse.status}`);
     }
 
-    return JSON.parse(text);
+    try {
+      return JSON.parse(text);
+    } catch (parseError) {
+      console.error('[digestAuth] Error parsing JSON response:', parseError);
+      throw new Error(`Invalid JSON response: ${text}`);
+    }
   } catch (error: unknown) {
-    console.error('Error in digestAuth:', error);
-    throw new McpError(
-      -32603,
+    console.error('[digestAuth] Error:', error);
+    throw createError(
       `API request failed: ${error instanceof Error ? error.message : String(error)}`
     );
   }
@@ -455,12 +503,12 @@ async function searchDrugs(params: SearchParams) {
     if (params.action) queryParts.push(`actionsPrimary:${params.action}`);
     if (params.phase) {
       // Handle OR and AND conditions in phase
-      const phases = params.phase.split(/\s+(?:OR|AND)\s+/).map(p => p.trim());
+      const phases = params.phase.split(/\s+(?:OR|AND)\s+/).map((p: string) => p.trim());
       if (phases.length > 1) {
         // Check if original string contains OR or AND
         const operator = params.phase.match(/\s+(OR|AND)\s+/)?.[1] || 'OR';
         // Handle both formats for each phase
-        const formattedPhases = phases.map(p => {
+        const formattedPhases = phases.map((p: string) => {
           // If it's already in the short format (L, C1, etc)
           if (/^[A-Z0-9]+$/.test(p)) {
             return `phaseHighest::${p}`;
@@ -582,20 +630,9 @@ async function searchCompanies(params: SearchCompaniesParams) {
   const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&hits=100&fmt=json`;
   
   console.log('Making request to:', url);
-  console.log('Using credentials - Username:', USERNAME, 'Password:', PASSWORD);
   
   try {
-    const response = await requestAsync({
-      url,
-      method: 'GET',
-      auth: {
-        user: USERNAME,
-        pass: PASSWORD,
-        sendImmediately: false
-      },
-      json: true
-    });
-
+    const response = await digestAuth(url);
     return {
       content: [{
         type: "text",
@@ -612,33 +649,83 @@ async function searchCompanies(params: SearchCompaniesParams) {
   }
 }
 
-async function exploreOntology(category?: string, term?: string): Promise<any> {
-  if (!category || !term) {
-    throw new McpError(-32603, 'Category and search term are required');
-  }
-
-  const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1';
-  const searchUrl = `${baseUrl}/taxonomy/${category}/search/${encodeURIComponent(term)}?showDuplicates=1&hitSynonyms=1&fmt=json`;
-
+async function exploreOntology(params: OntologyParams) {
   try {
-    const response = await requestAsync({
-      url: searchUrl,
-      method: 'GET',
-      auth: {
-        user: USERNAME,
-        pass: PASSWORD,
-        sendImmediately: false
-      }
-    });
+    console.log('Received params:', params);
 
-    if (response.statusCode === 200) {
-      return JSON.parse(response.body);
-    } else {
-      throw new McpError(-32603, `API request failed with status code ${response.statusCode}`);
+    // Determine which parameter to use as the search term
+    let searchTerm = params.term;
+    let searchCategory = params.category;
+
+    // If no explicit term/category provided, check other parameters
+    if (!searchCategory || !searchTerm) {
+      if (params.action) {
+        searchCategory = 'action';
+        searchTerm = params.action;
+      } else if (params.indication) {
+        searchCategory = 'indication';
+        searchTerm = params.indication;
+      } else if (params.company) {
+        searchCategory = 'company';
+        searchTerm = params.company;
+      } else if (params.drug_name) {
+        searchCategory = 'drug_name';
+        searchTerm = params.drug_name;
+      } else if (params.target) {
+        searchCategory = 'target';
+        searchTerm = params.target;
+      } else if (params.technology) {
+        searchCategory = 'technology';
+        searchTerm = params.technology;
+      }
     }
-  } catch (error) {
-    console.error('Error in ontology search:', error);
-    throw new McpError(-32603, 'Ontology search failed');
+
+    console.log('Resolved search parameters:', { searchCategory, searchTerm });
+
+    if (!searchCategory || !searchTerm) {
+      throw new McpError(-32603, 'Category and search term are required');
+    }
+
+    // Map category to the correct API endpoint
+    const categoryMap: { [key: string]: string } = {
+      'action': 'action',
+      'indication': 'indication',
+      'company': 'company',
+      'drug_name': 'drug',
+      'target': 'target',
+      'technology': 'technology'
+    };
+
+    const apiCategory = categoryMap[searchCategory];
+    if (!apiCategory) {
+      throw new McpError(-32603, `Invalid category: ${searchCategory}`);
+    }
+
+    const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1/taxonomy';
+    const searchUrl = `${baseUrl}/${apiCategory}/search/${encodeURIComponent(searchTerm)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
+
+    console.log('Making request to URL:', searchUrl);
+
+    const response = await digestAuth(searchUrl);
+    console.log('Raw API Response:', JSON.stringify(response, null, 2));
+
+    if (!response) {
+      throw new Error('Empty response from API');
+    }
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(response, null, 2)
+      }],
+      isError: false
+    };
+  } catch (error: any) {
+    console.error('Error in exploreOntology:', error);
+    throw new McpError(
+      -32603,
+      `Ontology search failed: ${error instanceof Error ? error.message : String(error)}`
+    );
   }
 }
 
@@ -778,6 +865,18 @@ async function runServer() {
     const app = express();
     app.use(express.json());
 
+    // Add logging middleware
+    app.use((req: Request, res: Response, next) => {
+      console.log(`${req.method} ${req.url}`);
+      next();
+    });
+
+    // Update error handling middleware
+    app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
+      console.error('Unhandled error:', err);
+      res.status(500).json({ error: 'Internal server error' });
+    });
+
     // Add search_drugs endpoint
     app.post('/search_drugs', async (req: Request, res: Response) => {
       try {
@@ -795,6 +894,7 @@ async function runServer() {
     // Add explore_ontology endpoint
     app.post('/explore_ontology', async (req: Request, res: Response) => {
       try {
+        console.log('Received explore_ontology request:', req.body);
         const { term, category, action, indication, company, drug_name, target, technology } = req.body;
         
         let searchCategory = category;
@@ -830,7 +930,9 @@ async function runServer() {
           throw new McpError(-32603, 'Invalid category or search term');
         }
 
-        const result = await exploreOntology(searchCategory, searchTerm);
+        console.log('Making ontology search request with:', { searchCategory, searchTerm });
+        const result = await exploreOntology({ term: searchTerm, category: searchCategory });
+        console.log('Ontology search result:', result);
         res.json(result);
       } catch (error) {
         console.error('Error in /explore_ontology:', error);
@@ -911,9 +1013,24 @@ async function runServer() {
       }
     });
 
-    app.listen(PORT, () => {
-      console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
-    });
+    // Start the server
+    try {
+      const server = app.listen(PORT, () => {
+        console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
+      });
+
+      // Handle server errors
+      server.on('error', (error: Error & { code?: string }) => {
+        console.error('Server error:', error);
+        if (error.code === 'EADDRINUSE') {
+          console.error(`Port ${PORT} is already in use`);
+        }
+        process.exit(1);
+      });
+    } catch (error) {
+      console.error('Failed to start server:', error);
+      process.exit(1);
+    }
   } else {
     const transport = new StdioServerTransport();
     const server = new Server(
@@ -950,7 +1067,7 @@ async function runServer() {
             if (typeof params.category !== 'string' || typeof params.term !== 'string') {
               throw new McpError(-32603, 'Invalid category or search term');
             }
-            return await exploreOntology(params.category, params.term);
+            return await exploreOntology(params as OntologyParams);
           case "get_drug":
             if (typeof params.id !== 'string') {
               throw new McpError(-32603, 'Invalid drug identifier');

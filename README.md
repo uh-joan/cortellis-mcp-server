@@ -2,6 +2,32 @@
 
 MCP Server for searching drugs and exploring ontology terms in the Cortellis database.
 
+## Installation
+
+```bash
+# Using npm
+npm install @uh-joan/mcp-server-cortellis
+```
+
+## Quick Start
+
+1. Set up your environment variables:
+```env
+CORTELLIS_USERNAME=your_username
+CORTELLIS_PASSWORD=your_password
+USE_HTTP=true  # Optional: run as HTTP server
+PORT=3000      # Optional: specify port for HTTP server
+```
+
+2. Run the server:
+```bash
+# As MCP server
+npx mcp-server-cortellis
+
+# As HTTP server
+USE_HTTP=true PORT=3000 npx mcp-server-cortellis
+```
+
 ## Tools
 
 1. `search_drugs`
@@ -188,14 +214,21 @@ Before starting make sure [Node.js](https://nodejs.org/) is installed on your de
 ## Build (for devs)
 
 ```bash
+git clone https://github.com/uh-joan/mcp-server-cortellis.git
+cd mcp-server-cortellis
 npm install
 npm run build
 ```
 
-For local development, create a `.env` file with your credentials:
+For local development:
 ```bash
+# Copy example environment file
 cp .env.example .env
+
 # Edit .env with your credentials
+vim .env  # or use your preferred editor
+
+# Start the server
 npm run start
 ```
 
@@ -215,3 +248,11 @@ This MCP server is licensed under the MIT License.
 Cortellis™ is a commercial product and trademark of Clarivate Analytics. This MCP server requires valid Cortellis API credentials to function. To obtain credentials and learn more about Cortellis, please visit [Clarivate's Cortellis page](https://clarivate.com/products/cortellis/). 
 
 This project is not affiliated with, endorsed by, or sponsored by Clarivate Analytics. All product names, logos, and brands are property of their respective owners.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
+
+## Versioning
+
+We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/uh-joan/mcp-server-cortellis/tags).
