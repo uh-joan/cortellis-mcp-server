@@ -34,19 +34,15 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
    - Search for drugs in the Cortellis database
    - Optional Inputs:
      - `query` (string) - Raw search query
-     - `company` (string) - Company developing the drug
-     - `indication` (string) - Active indications (e.g., obesity)
+     - `company` (string) - Company ID for the developing company (e.g., "18614")
+     - `indication` (string) - Indication ID (numeric ID only, e.g., "238" for Obesity). Use explore_ontology to find the correct ID.
      - `action` (string) - Target specific action (e.g., glucagon)
      - `phase` (string) - Development status:
-       - Supports both short and descriptive formats:
-         - Short format: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
-         - Descriptive format: "Phase 1 Clinical", "Phase 2 Clinical", "Phase 3 Clinical", "Launched", etc.
-       - Supports OR/AND operators: "C2 OR C3" or "Phase 2 Clinical OR Phase 3 Clinical"
+       - Uses LINKED format with short codes: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
+       - Supports OR/AND operators: "L OR C3"
        - Examples:
-         - `phase: "C3"` (short format)
-         - `phase: "C2 OR C3"` (short format)
-         - `phase: "Phase 2 Clinical OR Phase 3 Clinical"` (descriptive format)
-         - `phase: "C2 AND C3"` (using AND operator)
+         - phase: "L"
+         - phase: "C3 OR PR"
        - Status codes:
          - S: Suspended
          - DR: Discovery/Preclinical
@@ -60,15 +56,13 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
          - DX: Discontinued
          - W: Withdrawn
      - `phase_terminated` (string) - Last phase before NDR/DX
-       - Supports same formats and operators as `phase`
+       - Uses short format with double colon: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
        - Examples:
-         - `phase_terminated: "C2 OR CR"` (short format)
-         - `phase_terminated: "C2"` (short format)
-         - `phase_terminated: "Phase 2 Clinical"` (descriptive format)
-         - `phase_terminated: "C2 OR C3"` (multiple phases)
+         - `phase_terminated: "C2"`
+         - `phase_terminated: "C2 OR C3"`
      - `technology` (string) - Drug technology (e.g., small molecule)
      - `drug_name` (string) - Name of the drug
-     - `country` (string) - Country of development
+     - `country` (string) - Country ID (e.g., "US")
      - `offset` (number) - For pagination
    - Returns: JSON response with drug information and development status
 

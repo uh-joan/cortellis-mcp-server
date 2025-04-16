@@ -1,7 +1,24 @@
 #!/usr/bin/env node
 
+/**
+ * Cortellis MCP Server
+ * 
+ * This server provides a bridge between the Model Context Protocol (MCP) and the Cortellis API.
+ * It supports both MCP server mode (with stdio or SSE transport) and HTTP server mode for flexible integration.
+ * 
+ * Environment Variables:
+ * - CORTELLIS_USERNAME: Required. Username for Cortellis API authentication
+ * - CORTELLIS_PASSWORD: Required. Password for Cortellis API authentication
+ * - USE_HTTP: Optional. Set to 'true' to run as HTTP server (default: false)
+ * - PORT: Optional. Port number for HTTP server (default: 3000)
+ * - LOG_LEVEL: Optional. Logging level (default: 'info')
+ * - TRANSPORT: Optional. MCP transport type ('stdio' or 'sse', default: 'stdio')
+ * - SSE_PATH: Optional. Path for SSE endpoint when using SSE transport (default: '/mcp')
+ */
+
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -14,7 +31,55 @@ import express, { Request, Response, NextFunction } from 'express';
 import 'dotenv/config';
 import { createHash } from 'crypto';
 
-// Add type definitions at the top of the file, after the imports
+/**
+ * Logging utility for consistent log format across the application
+ * Supports different log levels and structured logging
+ */
+type LogLevel = 'error' | 'warn' | 'info' | 'debug';
+
+const logger = {
+  levels: {
+    error: 0,
+    warn: 1,
+    info: 2,
+    debug: 3
+  } as const,
+  level: (process.env.LOG_LEVEL || 'info') as LogLevel,
+  
+  formatMessage: (level: string, message: string, meta?: any) => {
+    const timestamp = new Date().toISOString();
+    const metaStr = meta ? ` | ${JSON.stringify(meta)}` : '';
+    return `[${timestamp}] ${level.toUpperCase()}: ${message}${metaStr}`;
+  },
+
+  error: (message: string, meta?: any) => {
+    if (logger.levels[logger.level as keyof typeof logger.levels] >= logger.levels.error) {
+      console.error(logger.formatMessage('error', message, meta));
+    }
+  },
+
+  warn: (message: string, meta?: any) => {
+    if (logger.levels[logger.level as keyof typeof logger.levels] >= logger.levels.warn) {
+      console.warn(logger.formatMessage('warn', message, meta));
+    }
+  },
+
+  info: (message: string, meta?: any) => {
+    if (logger.levels[logger.level as keyof typeof logger.levels] >= logger.levels.info) {
+      console.log(logger.formatMessage('info', message, meta));
+    }
+  },
+
+  debug: (message: string, meta?: any) => {
+    if (logger.levels[logger.level as keyof typeof logger.levels] >= logger.levels.debug) {
+      console.debug(logger.formatMessage('debug', message, meta));
+    }
+  }
+};
+
+/**
+ * Type definitions for schema properties and parameters
+ */
 interface SchemaProperty {
   type: string;
   description: string;
@@ -25,15 +90,28 @@ interface SchemaProperty {
   notes?: string;
 }
 
-// API credentials from environment variables
+// API configuration and environment variables
 const USERNAME = process.env.CORTELLIS_USERNAME || '';
 const PASSWORD = process.env.CORTELLIS_PASSWORD || '';
 const USE_HTTP = process.env.USE_HTTP === 'true';
 const PORT = process.env.PORT ? parseInt(process.env.PORT) : 3000;
+const TRANSPORT = process.env.TRANSPORT || 'stdio';
+const SSE_PATH = process.env.SSE_PATH || '/mcp';
 
+// Validate required environment variables
 if (!USERNAME || !PASSWORD) {
-  console.error("Error: CORTELLIS_USERNAME and CORTELLIS_PASSWORD environment variables must be set");
+  logger.error("Missing required environment variables", {
+    username: !USERNAME ? "missing" : "present",
+    password: !PASSWORD ? "missing" : "present"
+  });
   process.exit(1);
+}
+
+// Validate transport configuration
+if (TRANSPORT !== 'stdio') {
+  logger.warn("SSE transport is temporarily disabled. Defaulting to stdio transport.", {
+    requested_transport: TRANSPORT
+  });
 }
 
 // Tool definitions
@@ -49,11 +127,11 @@ const SEARCH_DRUGS_TOOL: Tool = {
       },
       company: {
         type: "string",
-        description: "Company developing the drug (Active companies)"
+        description: "Company ID for the developing company (e.g., 18614)"
       },
       indication: {
         type: "string",
-        description: "Active indications of a drug (e.g. obesity or cancer)"
+        description: "Indication ID (numeric ID only, e.g., 238 for Obesity). Use explore_ontology to find the correct ID."
       },
       action: {
         type: "string",
@@ -93,9 +171,9 @@ const SEARCH_DRUGS_TOOL: Tool = {
           "W": "Withdrawn - Removed from market"
         },
         examples: [
-          "C3",
+          "L",
           "C3 OR PR",
-          "C1 AND C2"
+          "C2 AND C3"
         ],
         format: "Can use OR/AND operators for multiple phases"
       },
@@ -113,7 +191,7 @@ const SEARCH_DRUGS_TOOL: Tool = {
       },
       country: {
         type: "string",
-        description: "Country of drug development (e.g. US, EU)"
+        description: "Country ID (e.g., US)"
       },
       offset: {
         type: "number",
@@ -130,10 +208,10 @@ const SEARCH_DRUGS_TOOL: Tool = {
   },
   examples: [
     {
-      description: "Search for Phase 3 obesity drugs",
+      description: "Search for Launched drugs in the US",
       usage: `{
-        "phase": "C3",
-        "indication": "obesity"
+        "phase": "L",
+        "country": "US"
       }`
     },
     {
@@ -329,55 +407,76 @@ const SEARCH_COMPANIES_TOOL: Tool = {
   }
 };
 
+/**
+ * Interface for search parameters used in drug queries
+ * Supports both raw queries and structured parameter searches
+ */
 interface SearchParams {
-  query?: string;
-  company?: string;
-  indication?: string;
-  action?: string;
-  phase?: string;
-  phase_terminated?: string;
-  technology?: string;
-  drug_name?: string;
-  country?: string;
-  offset?: number;
+  query?: string;            // Raw search query for direct Cortellis API syntax
+  company?: string;          // Company ID for filtering by developing company
+  indication?: string;       // Indication ID or name for disease/condition
+  action?: string;          // Target specific action of the drug
+  phase?: string;           // Overall highest development status
+  phase_terminated?: string; // Last phase before NDR/DX status
+  technology?: string;      // Drug development technology
+  drug_name?: string;       // Name of the drug compound
+  country?: string;         // Country ID for regional filtering
+  offset?: number;          // Pagination offset
 }
 
-interface SearchCompaniesParams {
-  query?: string;
-  company_name?: string;
-  hq_country?: string;
-  deals_count?: string;
-  indications?: string;
-  actions?: string;
-  technologies?: string;
-  company_size?: string;
-  status?: string;
-  offset?: number;
-}
-
+/**
+ * Interface for ontology exploration parameters
+ * Used to search and navigate the Cortellis taxonomy
+ */
 interface OntologyParams {
-  term?: string;
-  category?: string;
-  action?: string;
-  indication?: string;
-  company?: string;
-  drug_name?: string;
-  target?: string;
-  technology?: string;
+  term?: string;            // Generic search term
+  category?: string;        // Specific category to search within
+  action?: string;          // Action/mechanism specific search
+  indication?: string;      // Disease/condition specific search
+  company?: string;         // Company specific search
+  drug_name?: string;       // Drug name specific search
+  target?: string;          // Drug target specific search
+  technology?: string;      // Technology specific search
+}
+
+/**
+ * Interface for company search parameters
+ * Supports both raw queries and structured parameter searches
+ */
+interface SearchCompaniesParams {
+  query?: string;         // Raw search query for direct Cortellis API syntax
+  company_name?: string;  // Company name to search for
+  hq_country?: string;    // Company headquarters country
+  deals_count?: string;   // Count of deals where company is principal/partner
+  indications?: string;   // Top indication terms from company's portfolio
+  actions?: string;       // Top action terms from company's portfolio
+  technologies?: string;  // Top technology terms from company's portfolio
+  company_size?: string;  // Company size based on market cap (in billions USD)
+  status?: string;        // Highest status of company's drugs
+  offset?: number;        // Pagination offset
 }
 
 function createMcpError(message: string, code: number = -32603): McpError {
   return new McpError(code, message);
 }
 
+/**
+ * Performs digest authentication for Cortellis API requests
+ * Implements a two-step authentication process:
+ * 1. Initial request to get nonce
+ * 2. Authenticated request with digest credentials
+ * 
+ * @param url - The API endpoint URL
+ * @param method - HTTP method (default: 'GET')
+ * @returns Promise resolving to the API response
+ * @throws McpError if authentication or request fails
+ */
 async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValue> {
   try {
-    console.log(`[digestAuth] Starting request to: ${url}`);
-    console.log(`[digestAuth] Using method: ${method}`);
-    console.log(`[digestAuth] Using credentials - Username: ${USERNAME}, Password: ${PASSWORD ? '***' : 'not set'}`);
+    logger.info(`[digestAuth] Starting request to: ${url}`);
+    logger.info(`[digestAuth] Using method: ${method}`);
     
     // First request to get the nonce
-    console.log('[digestAuth] Making initial request to get WWW-Authenticate header');
     const response = await fetch(url, {
       method,
       headers: {
@@ -389,32 +488,25 @@ async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValu
 
     // Get WWW-Authenticate header
     const authHeader = response.headers.get('www-authenticate');
-    console.log('[digestAuth] WWW-Authenticate header:', authHeader);
-    
     if (!authHeader) {
-      throw new Error('No WWW-Authenticate header received');
+      throw new McpError(-32603, 'No WWW-Authenticate header received');
     }
 
     // Parse WWW-Authenticate header
     const realm = authHeader.match(/realm="([^"]+)"/)?.[1];
     const nonce = authHeader.match(/nonce="([^"]+)"/)?.[1];
-    const qop = authHeader.match(/qop="([^"]+)"/)?.[1]; // Optional
-    const stale = authHeader.match(/stale="([^"]+)"/)?.[1]; // Optional
-    
-    console.log('[digestAuth] Parsed auth parameters:', { realm, nonce, qop, stale });
+    const qop = authHeader.match(/qop="([^"]+)"/)?.[1];
 
     if (!realm || !nonce) {
-      throw new Error('Invalid WWW-Authenticate header - missing realm or nonce');
+      throw new McpError(-32603, 'Invalid WWW-Authenticate header - missing realm or nonce');
     }
 
     // Generate cnonce and nc only if qop is specified
-    let cnonce, nc, digestResponse;
+    let digestResponse: string;
     
     if (qop) {
-      // If qop is specified, use RFC 2617 algorithm
-      cnonce = Math.random().toString(36).substring(2);
-      nc = '00000001';
-      console.log('[digestAuth] Generated values:', { cnonce, nc });
+      const cnonce = Math.random().toString(36).substring(2);
+      const nc = '00000001';
 
       // Calculate hashes
       const ha1 = createHash('md5')
@@ -428,8 +520,6 @@ async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValu
       const response_value = createHash('md5')
         .update(`${ha1}:${nonce}:${nc}:${cnonce}:${qop}:${ha2}`)
         .digest('hex');
-
-      console.log('[digestAuth] Calculated hashes:', { ha1: '***', ha2, response_value });
 
       // Construct Authorization header with qop
       digestResponse = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${url}", qop=${qop}, nc=${nc}, cnonce="${cnonce}", response="${response_value}", algorithm="MD5"`;
@@ -447,16 +537,11 @@ async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValu
         .update(`${ha1}:${nonce}:${ha2}`)
         .digest('hex');
 
-      console.log('[digestAuth] Calculated hashes (no qop):', { ha1: '***', ha2, response_value });
-
       // Construct Authorization header without qop
       digestResponse = `Digest username="${USERNAME}", realm="${realm}", nonce="${nonce}", uri="${url}", response="${response_value}", algorithm="MD5"`;
     }
 
-    console.log('[digestAuth] Authorization header:', digestResponse);
-
     // Make authenticated request
-    console.log('[digestAuth] Making authenticated request');
     const authenticatedResponse = await fetch(url, {
       method,
       headers: {
@@ -467,66 +552,64 @@ async function digestAuth(url: string, method: string = 'GET'): Promise<JsonValu
       }
     });
 
-    console.log('[digestAuth] Response status:', authenticatedResponse.status);
-    console.log('[digestAuth] Response headers:', JSON.stringify(authenticatedResponse.headers.raw(), null, 2));
-    
-    const text = await authenticatedResponse.text();
-    console.log('[digestAuth] Response body:', text);
-
     if (!authenticatedResponse.ok) {
-      throw new Error(`Request failed with status code: ${authenticatedResponse.status}`);
+      const errorText = await authenticatedResponse.text();
+      throw new McpError(
+        -32603,
+        `Request failed with status ${authenticatedResponse.status}: ${errorText}`
+      );
     }
 
+    const text = await authenticatedResponse.text();
+    
     try {
-      return JSON.parse(text);
+      const jsonResponse = JSON.parse(text);
+      if (!jsonResponse) {
+        throw new McpError(-32603, 'Empty response from API');
+      }
+      return jsonResponse;
     } catch (parseError) {
-      console.error('[digestAuth] Error parsing JSON response:', parseError);
-      throw new Error(`Invalid JSON response: ${text}`);
+      throw new McpError(
+        -32603,
+        `Invalid JSON response: ${text.substring(0, 100)}...`
+      );
     }
-  } catch (error: unknown) {
-    console.error('[digestAuth] Error:', error);
-    throw createError(
+  } catch (error) {
+    if (error instanceof McpError) {
+      throw error;
+    }
+    throw new McpError(
+      -32603,
       `API request failed: ${error instanceof Error ? error.message : String(error)}`
     );
   }
 }
 
+/**
+ * Searches for drugs in the Cortellis database
+ * Constructs queries based on provided parameters and handles both
+ * LINKED and non-LINKED parameters appropriately
+ * 
+ * @param params - Search parameters for filtering drugs
+ * @returns Promise resolving to the search results
+ * @throws McpError if the search fails
+ */
 async function searchDrugs(params: SearchParams) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/drug/search";
   let query = params.query;
 
   if (!query) {
-    const queryParts: string[] = [];
+    const linkedParts: string[] = [];
+    const otherParts: string[] = [];
     
-    if (params.company) queryParts.push(`companiesPrimary:"${params.company}"`);
-    if (params.indication) queryParts.push(`indicationsPrimary:${params.indication}`);
-    if (params.action) queryParts.push(`actionsPrimary:${params.action}`);
-    if (params.phase) {
-      // Handle OR and AND conditions in phase
-      const phases = params.phase.split(/\s+(?:OR|AND)\s+/).map((p: string) => p.trim());
-      if (phases.length > 1) {
-        // Check if original string contains OR or AND
-        const operator = params.phase.match(/\s+(OR|AND)\s+/)?.[1] || 'OR';
-        // Handle both formats for each phase
-        const formattedPhases = phases.map((p: string) => {
-          // If it's already in the short format (L, C1, etc)
-          if (/^[A-Z0-9]+$/.test(p)) {
-            return `phaseHighest::${p}`;
-          }
-          // If it's in the descriptive format (launched, etc)
-          return `phaseHighest:${p}`;
-        });
-        queryParts.push(`(${formattedPhases.join(` ${operator} `)})`);
-      } else {
-        // Single phase - handle both formats
-        const phase = phases[0];
-        if (/^[A-Z0-9]+$/.test(phase)) {
-          queryParts.push(`phaseHighest::${phase}`);
-        } else {
-          queryParts.push(`phaseHighest:${phase}`);
-        }
-      }
-    }
+    // Handle development status related parameters with LINKED clause
+    if (params.company) linkedParts.push(`developmentStatusCompanyId:${params.company}`);
+    if (params.indication) linkedParts.push(`developmentStatusIndicationId:${params.indication}`);
+    if (params.country) linkedParts.push(`developmentStatusCountryId:${params.country}`);
+    if (params.phase) linkedParts.push(`developmentStatusPhaseId:${params.phase}`);
+    
+    // Handle other parameters
+    if (params.technology) otherParts.push(`technologies:${params.technology}`);
     if (params.phase_terminated) {
       // Handle OR and AND conditions in phase_terminated
       const phases = params.phase_terminated.split(/\s+(?:OR|AND)\s+/).map(p => p.trim());
@@ -542,35 +625,66 @@ async function searchDrugs(params: SearchParams) {
           // If it's in the descriptive format ("phase 2 Clinical", etc)
           return `phaseTerminated:"${p}"`;
         });
-        queryParts.push(`(${formattedPhases.join(` ${operator} `)})`);
+        otherParts.push(`(${formattedPhases.join(` ${operator} `)})`);
       } else {
         // Single phase - handle both formats
         const phase = phases[0];
         if (/^[A-Z0-9]+$/.test(phase)) {
-          queryParts.push(`phaseTerminated::${phase}`);
+          otherParts.push(`phaseTerminated::${phase}`);
         } else {
-          queryParts.push(`phaseTerminated:"${phase}"`);
+          otherParts.push(`phaseTerminated:"${phase}"`);
         }
       }
     }
-    if (params.technology) queryParts.push(`technologies:${params.technology}`);
-    if (params.drug_name) queryParts.push(`drugNamesAll:${params.drug_name}`);
-    if (params.country) queryParts.push(`LINKED(developmentStatusCountryId:${params.country})`);
+    if (params.action) otherParts.push(`actionsPrimary:${params.action}`);
+    if (params.drug_name) otherParts.push(`drugNamesAll:${params.drug_name}`);
     
-    query = queryParts.length > 0 ? queryParts.join(" AND ") : "*";
+    // Construct final query - combine LINKED clause with other parts
+    const linkedQuery = linkedParts.length > 0 ? `LINKED(${linkedParts.join(" AND ")})` : "";
+    const otherQuery = otherParts.length > 0 ? otherParts.join(" AND ") : "";
+    
+    if (linkedQuery && otherQuery) {
+      query = `${linkedQuery} AND ${otherQuery}`;
+    } else if (linkedQuery) {
+      query = linkedQuery;
+    } else if (otherQuery) {
+      query = otherQuery;
+    } else {
+      query = "*";
+    }
   }
 
+  // Add proper URL encoding and parameters
   const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&filtersEnabled=false&fmt=json&hits=100`;
-  const response = await digestAuth(url);
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify(response, null, 2)
-    }],
-    isError: false
-  };
+  logger.info('Generated URL:', url);
+  logger.info('Generated query:', query);
+  
+  try {
+    const response = await digestAuth(url);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify(response, null, 2)
+      }],
+      isError: false
+    };
+  } catch (error) {
+    logger.error('Error in searchDrugs:', error);
+    throw new McpError(
+      -32603,
+      `API request failed: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
 }
 
+/**
+ * Searches for companies in the Cortellis database
+ * Supports various company-specific filters and search criteria
+ * 
+ * @param params - Search parameters for filtering companies
+ * @returns Promise resolving to the search results
+ * @throws McpError if the search fails
+ */
 async function searchCompanies(params: SearchCompaniesParams) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/company-v2/company/search";
   let query = params.query;
@@ -629,7 +743,7 @@ async function searchCompanies(params: SearchCompaniesParams) {
 
   const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&hits=100&fmt=json`;
   
-  console.log('Making request to:', url);
+  logger.info('Making request to:', url);
   
   try {
     const response = await digestAuth(url);
@@ -641,7 +755,7 @@ async function searchCompanies(params: SearchCompaniesParams) {
       isError: false
     };
   } catch (error) {
-    console.error('Error in searchCompanies:', error);
+    logger.error('Error in searchCompanies:', error);
     throw new McpError(
       -32603,
       `API request failed: ${error instanceof Error ? error.message : String(error)}`
@@ -649,9 +763,17 @@ async function searchCompanies(params: SearchCompaniesParams) {
   }
 }
 
+/**
+ * Explores the Cortellis ontology/taxonomy
+ * Provides term lookup and category-specific searches
+ * 
+ * @param params - Parameters for ontology exploration
+ * @returns Promise resolving to matching taxonomy terms
+ * @throws McpError if the exploration fails
+ */
 async function exploreOntology(params: OntologyParams) {
   try {
-    console.log('Received params:', params);
+    logger.info('Received params:', params);
 
     // Determine which parameter to use as the search term
     let searchTerm = params.term;
@@ -680,7 +802,7 @@ async function exploreOntology(params: OntologyParams) {
       }
     }
 
-    console.log('Resolved search parameters:', { searchCategory, searchTerm });
+    logger.info('Resolved search parameters:', { searchCategory, searchTerm });
 
     if (!searchCategory || !searchTerm) {
       throw new McpError(-32603, 'Category and search term are required');
@@ -704,10 +826,10 @@ async function exploreOntology(params: OntologyParams) {
     const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1/taxonomy';
     const searchUrl = `${baseUrl}/${apiCategory}/search/${encodeURIComponent(searchTerm)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
 
-    console.log('Making request to URL:', searchUrl);
+    logger.info('Making request to URL:', searchUrl);
 
     const response = await digestAuth(searchUrl);
-    console.log('Raw API Response:', JSON.stringify(response, null, 2));
+    logger.info('Raw API Response:', JSON.stringify(response, null, 2));
 
     if (!response) {
       throw new Error('Empty response from API');
@@ -721,7 +843,7 @@ async function exploreOntology(params: OntologyParams) {
       isError: false
     };
   } catch (error: any) {
-    console.error('Error in exploreOntology:', error);
+    logger.error('Error in exploreOntology:', error);
     throw new McpError(
       -32603,
       `Ontology search failed: ${error instanceof Error ? error.message : String(error)}`
@@ -729,6 +851,13 @@ async function exploreOntology(params: OntologyParams) {
   }
 }
 
+/**
+ * Retrieves detailed information for a specific drug
+ * 
+ * @param id - Drug identifier
+ * @returns Promise resolving to the complete drug record
+ * @throws McpError if the retrieval fails
+ */
 async function getDrug(id: string) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/drug";
   const url = `${baseUrl}/${id}?fmt=json`;
@@ -742,6 +871,13 @@ async function getDrug(id: string) {
   };
 }
 
+/**
+ * Retrieves SWOT analysis for a specific drug
+ * 
+ * @param id - Drug identifier
+ * @returns Promise resolving to the drug's SWOT analysis
+ * @throws McpError if the retrieval fails
+ */
 async function getDrugSwot(id: string) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/drug/SWOTs";
   const url = `${baseUrl}/${id}?fmt=json`;
@@ -755,6 +891,13 @@ async function getDrugSwot(id: string) {
   };
 }
 
+/**
+ * Retrieves financial data and forecasts for a specific drug
+ * 
+ * @param id - Drug identifier
+ * @returns Promise resolving to the drug's financial information
+ * @throws McpError if the retrieval fails
+ */
 async function getDrugFinancial(id: string) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/drugs-v2/financial";
   const url = `${baseUrl}/${id}?fmt=json`;
@@ -768,6 +911,13 @@ async function getDrugFinancial(id: string) {
   };
 }
 
+/**
+ * Retrieves detailed information for a specific company
+ * 
+ * @param id - Company identifier
+ * @returns Promise resolving to the complete company record
+ * @throws McpError if the retrieval fails
+ */
 async function getCompany(id: string) {
   const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/company-v2/company";
   const url = `${baseUrl}/${id}?fmt=json`;
@@ -781,10 +931,16 @@ async function getCompany(id: string) {
   };
 }
 
+/**
+ * Main server initialization and setup function
+ * Supports both HTTP and MCP server modes with configurable transport
+ * 
+ * @throws Error if server initialization fails
+ */
 async function runServer() {
   // Check for --list-tools flag
   if (process.argv.includes('--list-tools')) {
-    console.log(JSON.stringify([
+    logger.info(JSON.stringify([
       {
         name: SEARCH_DRUGS_TOOL.name,
         description: SEARCH_DRUGS_TOOL.description,
@@ -861,40 +1017,162 @@ async function runServer() {
     return;
   }
 
+  const server = new Server(
+    {
+      name: "cortellis",
+      version: "0.1.0",
+    },
+    {
+      capabilities: {
+        tools: {}
+      }
+    }
+  );
+
+  // Set up request handlers
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
+  }));
+
+  server.setRequestHandler(CallToolRequestSchema, async (request) => {
+    if (!request.params?.name) {
+      throw new McpError(
+        -32603,
+        "Tool name not provided"
+      );
+    }
+
+    const params = request.params.arguments || {};
+    
+    try {
+      switch (request.params.name) {
+        case "search_drugs":
+          return await searchDrugs(params as SearchParams);
+        case "explore_ontology":
+          if (typeof params.category !== 'string' || typeof params.term !== 'string') {
+            throw new McpError(-32603, 'Invalid category or search term');
+          }
+          return await exploreOntology(params as OntologyParams);
+        case "get_drug":
+          if (typeof params.id !== 'string') {
+            throw new McpError(-32603, 'Invalid drug identifier');
+          }
+          return await getDrug(params.id);
+        case "get_drug_swot":
+          if (typeof params.id !== 'string') {
+            throw new McpError(-32603, 'Invalid drug identifier');
+          }
+          return await getDrugSwot(params.id);
+        case "get_drug_financial":
+          if (typeof params.id !== 'string') {
+            throw new McpError(-32603, 'Invalid drug identifier');
+          }
+          return await getDrugFinancial(params.id);
+        case "get_company":
+          if (typeof params.id !== 'string') {
+            throw new McpError(-32603, 'Invalid company identifier');
+          }
+          return await getCompany(params.id);
+        case "search_companies":
+          if (params.query && typeof params.query !== 'string') {
+            throw new McpError(-32603, 'Invalid query parameter');
+          }
+          if (params.company_name && typeof params.company_name !== 'string') {
+            throw new McpError(-32603, 'Invalid company_name parameter');
+          }
+          if (params.hq_country && typeof params.hq_country !== 'string') {
+            throw new McpError(-32603, 'Invalid hq_country parameter');
+          }
+          if (params.deals_count && typeof params.deals_count !== 'string') {
+            throw new McpError(-32603, 'Invalid deals_count parameter');
+          }
+          if (params.indications && typeof params.indications !== 'string') {
+            throw new McpError(-32603, 'Invalid indications parameter');
+          }
+          if (params.actions && typeof params.actions !== 'string') {
+            throw new McpError(-32603, 'Invalid actions parameter');
+          }
+          if (params.technologies && typeof params.technologies !== 'string') {
+            throw new McpError(-32603, 'Invalid technologies parameter');
+          }
+          if (params.company_size && typeof params.company_size !== 'string') {
+            throw new McpError(-32603, 'Invalid company_size parameter');
+          }
+          if (params.status && typeof params.status !== 'string') {
+            throw new McpError(-32603, 'Invalid status parameter');
+          }
+          return await searchCompanies(params as SearchCompaniesParams);
+        default:
+          throw new McpError(
+            -32603,
+            `Unknown tool: ${request.params.name}`
+          );
+      }
+    } catch (error: unknown) {
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        -32603,
+        `Failed to execute ${request.params.name}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  });
+
   if (USE_HTTP) {
     const app = express();
     app.use(express.json());
 
     // Add logging middleware
     app.use((req: Request, res: Response, next) => {
-      console.log(`${req.method} ${req.url}`);
+      logger.info(`${req.method} ${req.url}`);
       next();
     });
 
     // Update error handling middleware
     app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
-      console.error('Unhandled error:', err);
+      logger.error('Unhandled error:', err);
       res.status(500).json({ error: 'Internal server error' });
     });
 
     // Add search_drugs endpoint
     app.post('/search_drugs', async (req: Request, res: Response) => {
       try {
-        const result = await searchDrugs(req.body);
+        logger.info('Received search_drugs request:', req.body);
+        const { query, company, indication, action, phase, phase_terminated, technology, drug_name, country, offset } = req.body;
+        
+        let finalQuery = query;
+        if (!finalQuery) {
+          const linkedParts: string[] = [];
+          
+          // Handle development status related parameters with LINKED clause
+          if (company) linkedParts.push(`developmentStatusCompanyId:${company}`);
+          if (indication) linkedParts.push(`developmentStatusIndicationId:${indication}`);
+          if (country) linkedParts.push(`developmentStatusCountryId:${country}`);
+          if (phase) linkedParts.push(`developmentStatusPhaseId:${phase}`);
+          
+          // Only use the LINKED clause
+          finalQuery = linkedParts.length > 0 ? `LINKED(${linkedParts.join(" AND ")})` : "*";
+        }
+
+        logger.info('Generated query:', finalQuery);
+        
+        const result = await searchDrugs({ query: finalQuery, offset });
         res.json(result);
       } catch (error) {
-        if (error instanceof McpError) {
-          res.status(500).json({ error: error.message, code: error.code });
-        } else {
-          res.status(500).json({ error: 'Internal server error' });
-        }
+        logger.error('Error in /search_drugs:', error);
+        const mcpError = error instanceof McpError ? error : new McpError(-32603, String(error));
+        res.status(500).json({
+          error: `MCP error ${mcpError.code}: ${mcpError.message}`,
+          code: 500
+        });
       }
     });
 
     // Add explore_ontology endpoint
     app.post('/explore_ontology', async (req: Request, res: Response) => {
       try {
-        console.log('Received explore_ontology request:', req.body);
+        logger.info('Received explore_ontology request:', req.body);
         const { term, category, action, indication, company, drug_name, target, technology } = req.body;
         
         let searchCategory = category;
@@ -930,12 +1208,12 @@ async function runServer() {
           throw new McpError(-32603, 'Invalid category or search term');
         }
 
-        console.log('Making ontology search request with:', { searchCategory, searchTerm });
+        logger.info('Making ontology search request with:', { searchCategory, searchTerm });
         const result = await exploreOntology({ term: searchTerm, category: searchCategory });
-        console.log('Ontology search result:', result);
+        logger.info('Ontology search result:', result);
         res.json(result);
       } catch (error) {
-        console.error('Error in /explore_ontology:', error);
+        logger.error('Error in /explore_ontology:', error);
         const mcpError = error instanceof McpError ? error : new McpError(-32603, String(error));
         res.status(500).json({
           error: `MCP error ${mcpError.code}: ${mcpError.message}`
@@ -1013,133 +1291,42 @@ async function runServer() {
       }
     });
 
+    // If using SSE transport, add SSE endpoint
+    if (TRANSPORT === 'sse') {
+      logger.warn("SSE transport is temporarily disabled.");
+    }
+
     // Start the server
     try {
-      const server = app.listen(PORT, () => {
-        console.log(`Cortellis MCP Server running on http://localhost:${PORT}`);
+      const httpServer = app.listen(PORT, () => {
+        logger.info(`Cortellis MCP Server running on http://localhost:${PORT}`);
+        if (TRANSPORT === 'sse') {
+          logger.info(`SSE endpoint available at http://localhost:${PORT}${SSE_PATH}`);
+        }
       });
 
       // Handle server errors
-      server.on('error', (error: Error & { code?: string }) => {
-        console.error('Server error:', error);
+      httpServer.on('error', (error: Error & { code?: string }) => {
+        logger.error('Server error:', error);
         if (error.code === 'EADDRINUSE') {
-          console.error(`Port ${PORT} is already in use`);
+          logger.error(`Port ${PORT} is already in use`);
         }
         process.exit(1);
       });
     } catch (error) {
-      console.error('Failed to start server:', error);
+      logger.error('Failed to start server:', error);
       process.exit(1);
     }
   } else {
+    // Non-HTTP mode
     const transport = new StdioServerTransport();
-    const server = new Server(
-      {
-        name: "cortellis",
-        version: "0.1.0",
-      },
-      {
-        capabilities: {
-          tools: {}
-        }
-      }
-    );
-
-    server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
-    }));
-
-    server.setRequestHandler(CallToolRequestSchema, async (request) => {
-      if (!request.params?.name) {
-        throw new McpError(
-          -32603,
-          "Tool name not provided"
-        );
-      }
-
-      const params = request.params.arguments || {};
-      
-      try {
-        switch (request.params.name) {
-          case "search_drugs":
-            return await searchDrugs(params as SearchParams);
-          case "explore_ontology":
-            if (typeof params.category !== 'string' || typeof params.term !== 'string') {
-              throw new McpError(-32603, 'Invalid category or search term');
-            }
-            return await exploreOntology(params as OntologyParams);
-          case "get_drug":
-            if (typeof params.id !== 'string') {
-              throw new McpError(-32603, 'Invalid drug identifier');
-            }
-            return await getDrug(params.id);
-          case "get_drug_swot":
-            if (typeof params.id !== 'string') {
-              throw new McpError(-32603, 'Invalid drug identifier');
-            }
-            return await getDrugSwot(params.id);
-          case "get_drug_financial":
-            if (typeof params.id !== 'string') {
-              throw new McpError(-32603, 'Invalid drug identifier');
-            }
-            return await getDrugFinancial(params.id);
-          case "get_company":
-            if (typeof params.id !== 'string') {
-              throw new McpError(-32603, 'Invalid company identifier');
-            }
-            return await getCompany(params.id);
-          case "search_companies":
-            if (params.query && typeof params.query !== 'string') {
-              throw new McpError(-32603, 'Invalid query parameter');
-            }
-            if (params.company_name && typeof params.company_name !== 'string') {
-              throw new McpError(-32603, 'Invalid company_name parameter');
-            }
-            if (params.hq_country && typeof params.hq_country !== 'string') {
-              throw new McpError(-32603, 'Invalid hq_country parameter');
-            }
-            if (params.deals_count && typeof params.deals_count !== 'string') {
-              throw new McpError(-32603, 'Invalid deals_count parameter');
-            }
-            if (params.indications && typeof params.indications !== 'string') {
-              throw new McpError(-32603, 'Invalid indications parameter');
-            }
-            if (params.actions && typeof params.actions !== 'string') {
-              throw new McpError(-32603, 'Invalid actions parameter');
-            }
-            if (params.technologies && typeof params.technologies !== 'string') {
-              throw new McpError(-32603, 'Invalid technologies parameter');
-            }
-            if (params.company_size && typeof params.company_size !== 'string') {
-              throw new McpError(-32603, 'Invalid company_size parameter');
-            }
-            if (params.status && typeof params.status !== 'string') {
-              throw new McpError(-32603, 'Invalid status parameter');
-            }
-            return await searchCompanies(params as SearchCompaniesParams);
-          default:
-            throw new McpError(
-              -32603,
-              `Unknown tool: ${request.params.name}`
-            );
-        }
-      } catch (error: unknown) {
-        if (error instanceof McpError) {
-          throw error;
-        }
-        throw new McpError(
-          -32603,
-          `Failed to execute ${request.params.name}: ${error instanceof Error ? error.message : String(error)}`
-        );
-      }
-    });
 
     await server.connect(transport);
-    console.log("Cortellis MCP Server running on stdio");
+    logger.info(`Cortellis MCP Server running with ${TRANSPORT} transport`);
   }
 }
 
 runServer().catch((error) => {
-  console.error("Server error:", error);
+  logger.error("Server error:", error);
   process.exit(1);
 });
