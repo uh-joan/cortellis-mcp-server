@@ -29,8 +29,8 @@ function checkPackageJson() {
   }
   
   // Check version format
-  if (!/^\d+\.\d+\.\d+$/.test(pkg.version)) {
-    console.error('❌ Invalid version format in package.json');
+  if (!/^\d+\.\d+\.\d+(-[a-zA-Z]+\.\d+)?$/.test(pkg.version)) {
+    console.error('❌ Invalid version format in package.json. Must be x.y.z or x.y.z-tag.n (e.g., 1.0.0 or 1.0.0-beta.0)');
     process.exit(1);
   }
   
