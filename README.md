@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/uh-joan-cortellis-mcp-server-badge.png)](https://mseep.ai/app/uh-joan-cortellis-mcp-server)
+
 # Cortellis MCP Server
 
 MCP Server for searching drugs and exploring ontology terms in the Cortellis database.
