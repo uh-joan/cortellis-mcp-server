@@ -305,7 +305,8 @@ const GET_DRUG_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Numeric Drug Identifier (e.g. '101964' for tirzepatide, not the drug name)",
+        examples: ["101964"]
       }
     },
     required: ["id"]
@@ -320,7 +321,8 @@ const GET_DRUG_SWOT_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Numeric Drug Identifier (e.g. '101964' for tirzepatide, not the drug name)",
+        examples: ["101964"]
       }
     },
     required: ["id"]
@@ -335,7 +337,8 @@ const GET_DRUG_FINANCIAL_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Drug Identifier"
+        description: "Numeric Drug Identifier (e.g. '101964' for tirzepatide, not the drug name)",
+        examples: ["101964"]
       }
     },
     required: ["id"]
@@ -350,7 +353,8 @@ const GET_COMPANY_TOOL: Tool = {
     properties: {
       id: {
         type: "string",
-        description: "Company identifier"
+        description: "Numeric Company Identifier (not the company name)",
+        examples: ["12345"]
       }
     },
     required: ["id"]

@@ -82,25 +82,53 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
 3. `get_drug`
    - Return the entire drug record with all available fields for a given identifier
    - Required Input:
-     - `id` (string) - Drug Identifier
+     - `id` (string) - Numeric Drug Identifier (e.g. "101964" for tirzepatide, not the drug name)
+   - Example:
+     {
+       "tool-name": "get_drug",
+       "Tool_Parameters": {
+         "id": "101964"
+       }
+     }
    - Returns: JSON response with complete drug record
 
 4. `get_drug_swot`
    - Return SWOT analysis complementing chosen drug record
    - Required Input:
-     - `id` (string) - Drug Identifier
+     - `id` (string) - Numeric Drug Identifier (e.g. "101964" for tirzepatide, not the drug name)
+   - Example:
+     {
+       "tool-name": "get_drug_swot",
+       "Tool_Parameters": {
+         "id": "101964"
+       }
+     }
    - Returns: JSON response with SWOT analysis for the drug
 
 5. `get_drug_financial`
    - Return financial commentary and data (actual sales and consensus forecast)
    - Required Input:
-     - `id` (string) - Drug Identifier
+     - `id` (string) - Numeric Drug Identifier (e.g. "101964" for tirzepatide, not the drug name)
+   - Example:
+     {
+       "tool-name": "get_drug_financial",
+       "Tool_Parameters": {
+         "id": "101964"
+       }
+     }
    - Returns: JSON response with financial data and commentary
 
 6. `get_company`
    - Return the entire company record with all available fields for a given identifier
    - Required Input:
-     - `id` (string) - Company Identifier
+     - `id` (string) - Numeric Company Identifier (not the company name)
+   - Example:
+     {
+       "tool-name": "get_company",
+       "Tool_Parameters": {
+         "id": "12345"
+       }
+     }
    - Returns: JSON response with complete company record
 
 7. `search_companies`
