@@ -412,6 +412,60 @@ const SEARCH_COMPANIES_TOOL: Tool = {
   }
 };
 
+const SEARCH_DEALS_TOOL: Tool = {
+  name: "search_deals",
+  description: "Search for deals in the Cortellis database. Supports all deal search parameters, including drug, company, indication, phase, value, and date filters.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Raw search query (if you want to use the full Cortellis query syntax directly)" },
+      dealDrugNamesAll: { type: "string", description: "Main name of drug including synonyms associated with the deal" },
+      indications: { type: "string", description: "Indications associated with the deal" },
+      dealDrugCompanyPartnerIndications: { type: "string", description: "The indication and the partner company linked to a drug associated with the deal" },
+      dealPhaseHighestStart: { type: "string", description: "Highest dev. status of the drug at the deal start" },
+      dealPhaseHighestNow: { type: "string", description: "Current highest dev. status of the drug" },
+      dealStatus: { type: "string", description: "Status of the deal" },
+      dealSummary: { type: "string", description: "Summary of the deal" },
+      dealTitleSummary: { type: "string", description: "Title or summary of the deal" },
+      technologies: { type: "string", description: "Technology linked to the drug" },
+      dealTitle: { type: "string", description: "Title of the deal" },
+      dealType: { type: "string", description: "Type of deal" },
+      actionsPrimary: { type: "string", description: "Primary mechanism of action associated with the deal" },
+      dealDrugActionsPrimary: { type: "string", description: "The primary mechanism of action of a drug associated with the deal" },
+      dealCompanyPrincipal: { type: "string", description: "Principal company (Seller/Licensor)" },
+      dealCompanyPartner: { type: "string", description: "Partner company (Buyer/Licensee)" },
+      dealCompanyPrincipalHq: { type: "string", description: "Location of the HQ of the principal company" },
+      dealTerritoriesIncluded: { type: "string", description: "The deal applies in the included countries" },
+      dealTerritoriesExcluded: { type: "string", description: "The deal doesn't apply in the excluded countries" },
+      dealDateStart: { type: "string", description: "Start date of the deal" },
+      dealDateEnd: { type: "string", description: "End date of the deal" },
+      dealDateEventMostRecent: { type: "string", description: "Date of the latest timeline event" },
+      dealValuePaidToPartnerMaxNumber: { type: "string", description: "Maximal paid payment amount to partner company in M USD considering the accuracy range" },
+      dealTotalProjectedCurrentAmount: { type: "string", description: "Total current projection of the agreement in US dollars million" },
+      dealValuePaidToPartnerMinNumber: { type: "string", description: "Minimal paid payment amount to partner company in M USD considering the accuracy range" },
+      dealTotalPaidAmount: { type: "string", description: "Total payment value of the agreement realized in US dollars million" },
+      dealValuePaidToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the paid payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
+      dealValuePaidToPrincipalMaxNumber: { type: "string", description: "Maximal paid amount to principal company in M USD considering the accuracy range" },
+      dealValuePaidToPrincipalMinNumber: { type: "string", description: "Minimal paid amount to principal company in M USD considering the accuracy range" },
+      dealValueProjectedToPartnerMaxNumber: { type: "string", description: "Maximal projected current amount to partner company in M USD considering the accuracy range" },
+      dealValueProjectedToPartnerMinNumber: { type: "string", description: "Minimal projected current amount to partner company in M USD considering the accuracy range" },
+      dealValueProjectedToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
+      dealValueProjectedToPrincipalMaxNumber: { type: "string", description: "Maximal projected current amount to principal company in M USD considering the accuracy range" },
+      dealValueProjectedToPrincipalMinNumber: { type: "string", description: "Minimal projected current amount to principal company in M USD considering the accuracy range" },
+      offset: { type: "number", description: "Starting position in the results (default: 0)" }
+    }
+  },
+  examples: [
+    {
+      description: "Search for completed deals involving melanoma",
+      usage: `{
+        "dealStatus": "Completed",
+        "indications": "Melanoma"
+      }`
+    }
+  ]
+};
+
 /**
  * Interface for search parameters used in drug queries
  * Supports both raw queries and structured parameter searches
@@ -498,60 +552,6 @@ interface SearchDealsParams {
   dealValueProjectedToPrincipalMinNumber?: string;
   offset?: number;
 }
-
-const SEARCH_DEALS_TOOL: Tool = {
-  name: "search_deals",
-  description: "Search for deals in the Cortellis database. Supports all deal search parameters, including drug, company, indication, phase, value, and date filters.",
-  inputSchema: {
-    type: "object",
-    properties: {
-      query: { type: "string", description: "Raw search query (if you want to use the full Cortellis query syntax directly)" },
-      dealDrugNamesAll: { type: "string", description: "Main name of drug including synonyms associated with the deal" },
-      indications: { type: "string", description: "Indications associated with the deal" },
-      dealDrugCompanyPartnerIndications: { type: "string", description: "The indication and the partner company linked to a drug associated with the deal" },
-      dealPhaseHighestStart: { type: "string", description: "Highest dev. status of the drug at the deal start" },
-      dealPhaseHighestNow: { type: "string", description: "Current highest dev. status of the drug" },
-      dealStatus: { type: "string", description: "Status of the deal" },
-      dealSummary: { type: "string", description: "Summary of the deal" },
-      dealTitleSummary: { type: "string", description: "Title or summary of the deal" },
-      technologies: { type: "string", description: "Technology linked to the drug" },
-      dealTitle: { type: "string", description: "Title of the deal" },
-      dealType: { type: "string", description: "Type of deal" },
-      actionsPrimary: { type: "string", description: "Primary mechanism of action associated with the deal" },
-      dealDrugActionsPrimary: { type: "string", description: "The primary mechanism of action of a drug associated with the deal" },
-      dealCompanyPrincipal: { type: "string", description: "Principal company (Seller/Licensor)" },
-      dealCompanyPartner: { type: "string", description: "Partner company (Buyer/Licensee)" },
-      dealCompanyPrincipalHq: { type: "string", description: "Location of the HQ of the principal company" },
-      dealTerritoriesIncluded: { type: "string", description: "The deal applies in the included countries" },
-      dealTerritoriesExcluded: { type: "string", description: "The deal doesn't apply in the excluded countries" },
-      dealDateStart: { type: "string", description: "Start date of the deal" },
-      dealDateEnd: { type: "string", description: "End date of the deal" },
-      dealDateEventMostRecent: { type: "string", description: "Date of the latest timeline event" },
-      dealValuePaidToPartnerMaxNumber: { type: "string", description: "Maximal paid payment amount to partner company in M USD considering the accuracy range" },
-      dealTotalProjectedCurrentAmount: { type: "string", description: "Total current projection of the agreement in US dollars million" },
-      dealValuePaidToPartnerMinNumber: { type: "string", description: "Minimal paid payment amount to partner company in M USD considering the accuracy range" },
-      dealTotalPaidAmount: { type: "string", description: "Total payment value of the agreement realized in US dollars million" },
-      dealValuePaidToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the paid payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
-      dealValuePaidToPrincipalMaxNumber: { type: "string", description: "Maximal paid amount to principal company in M USD considering the accuracy range" },
-      dealValuePaidToPrincipalMinNumber: { type: "string", description: "Minimal paid amount to principal company in M USD considering the accuracy range" },
-      dealValueProjectedToPartnerMaxNumber: { type: "string", description: "Maximal projected current amount to partner company in M USD considering the accuracy range" },
-      dealValueProjectedToPartnerMinNumber: { type: "string", description: "Minimal projected current amount to partner company in M USD considering the accuracy range" },
-      dealValueProjectedToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
-      dealValueProjectedToPrincipalMaxNumber: { type: "string", description: "Maximal projected current amount to principal company in M USD considering the accuracy range" },
-      dealValueProjectedToPrincipalMinNumber: { type: "string", description: "Minimal projected current amount to principal company in M USD considering the accuracy range" },
-      offset: { type: "number", description: "Starting position in the results (default: 0)" }
-    }
-  },
-  examples: [
-    {
-      description: "Search for completed deals involving melanoma",
-      usage: `{
-        "dealStatus": "Completed",
-        "indications": "Melanoma"
-      }`
-    }
-  ]
-};
 
 function createMcpError(message: string, code: number = -32603): McpError {
   return new McpError(code, message);
@@ -1191,7 +1191,7 @@ async function runServer() {
 
   // Set up request handlers
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
+    tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL, SEARCH_DEALS_TOOL]
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1262,6 +1262,8 @@ async function runServer() {
             throw new McpError(-32603, 'Invalid status parameter');
           }
           return await searchCompanies(params as SearchCompaniesParams);
+        case "search_deals":
+          return await searchDeals(params as SearchDealsParams);
         default:
           throw new McpError(
             -32603,
@@ -1451,6 +1453,20 @@ async function runServer() {
       }
     });
 
+    // Add search_deals endpoint
+    app.post('/search_deals', async (req: Request, res: Response) => {
+      try {
+        const result = await searchDeals(req.body);
+        res.json(result);
+      } catch (error) {
+        if (error instanceof McpError) {
+          res.status(500).json({ error: error.message, code: error.code });
+        } else {
+          res.status(500).json({ error: 'Internal server error' });
+        }
+      }
+    });
+
     // Start the server
     try {
       const httpServer = app.listen(PORT, () => {
@@ -1488,7 +1504,7 @@ async function runServer() {
     );
 
     server.setRequestHandler(ListToolsRequestSchema, async () => ({
-      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
+      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL, SEARCH_DEALS_TOOL]
     }));
 
     server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -1559,6 +1575,8 @@ async function runServer() {
               throw new McpError(-32603, 'Invalid status parameter');
             }
             return await searchCompanies(params as SearchCompaniesParams);
+          case "search_deals":
+            return await searchDeals(params as SearchDealsParams);
           default:
             throw new McpError(
               -32603,
