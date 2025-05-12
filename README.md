@@ -150,12 +150,59 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `offset` (number) - For pagination
    - Returns: JSON response with company information
 
+8. `search_deals`
+   - Search for deals in the Cortellis database
+   - Optional Inputs:
+     - `query` (string) - Raw search query (if you want to use the full Cortellis query syntax directly)
+     - `dealDrugNamesAll` (string) - Main name of drug including synonyms associated with the deal
+     - `indications` (string) - Indications associated with the deal
+     - `dealDrugCompanyPartnerIndications` (string) - The indication and the partner company linked to a drug associated with the deal
+     - `dealPhaseHighestStart` (string) - Highest dev. status of the drug at the deal start
+     - `dealPhaseHighestNow` (string) - Current highest dev. status of the drug
+     - `dealStatus` (string) - Status of the deal
+     - `dealSummary` (string) - Summary of the deal
+     - `dealTitleSummary` (string) - Title or summary of the deal
+     - `technologies` (string) - Technology linked to the drug
+     - `dealTitle` (string) - Title of the deal
+     - `dealType` (string) - Type of deal
+     - `actionsPrimary` (string) - Primary mechanism of action associated with the deal
+     - `dealDrugActionsPrimary` (string) - The primary mechanism of action of a drug associated with the deal
+     - `dealCompanyPrincipal` (string) - Principal company (Seller/Licensor)
+     - `dealCompanyPartner` (string) - Partner company (Buyer/Licensee)
+     - `dealCompanyPrincipalHq` (string) - Location of the HQ of the principal company
+     - `dealTerritoriesIncluded` (string) - The deal applies in the included countries
+     - `dealTerritoriesExcluded` (string) - The deal doesn't apply in the excluded countries
+     - `dealDateStart` (string) - Start date of the deal
+     - `dealDateEnd` (string) - End date of the deal
+     - `dealDateEventMostRecent` (string) - Date of the latest timeline event
+     - `dealValuePaidToPartnerMaxNumber` (string) - Maximal paid payment amount to partner company in M USD considering the accuracy range
+     - `dealTotalProjectedCurrentAmount` (string) - Total current projection of the agreement in US dollars million
+     - `dealValuePaidToPartnerMinNumber` (string) - Minimal paid payment amount to partner company in M USD considering the accuracy range
+     - `dealTotalPaidAmount` (string) - Total payment value of the agreement realized in US dollars million
+     - `dealValuePaidToPrincipalMaxDisclosureStatus` (string) - Whether the paid payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'
+     - `dealValuePaidToPrincipalMaxNumber` (string) - Maximal paid amount to principal company in M USD considering the accuracy range
+     - `dealValuePaidToPrincipalMinNumber` (string) - Minimal paid amount to principal company in M USD considering the accuracy range
+     - `dealValueProjectedToPartnerMaxNumber` (string) - Maximal projected current amount to partner company in M USD considering the accuracy range
+     - `dealValueProjectedToPartnerMinNumber` (string) - Minimal projected current amount to partner company in M USD considering the accuracy range
+     - `dealValueProjectedToPrincipalMaxDisclosureStatus` (string) - Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'
+     - `dealValueProjectedToPrincipalMaxNumber` (string) - Maximal projected current amount to principal company in M USD considering the accuracy range
+     - `dealValueProjectedToPrincipalMinNumber` (string) - Minimal projected current amount to principal company in M USD considering the accuracy range
+     - `offset` (number) - For pagination
+   - Returns: JSON response with deal information
+   - Example:
+     ```json
+     {
+       "dealStatus": "Completed",
+       "indications": "Melanoma"
+     }
+     ```
+
 ## Features
 
-- Direct access to Cortellis drug database
-- Comprehensive drug development status search
+- Direct access to Cortellis drug and deal database
+- Comprehensive drug and deal development status search
 - Ontology/taxonomy term exploration
-- Detailed drug information retrieval
+- Detailed drug and deal information retrieval
 - SWOT analysis for drugs
 - Financial data and forecasts
 - Structured JSON responses
@@ -196,6 +243,10 @@ When running in HTTP mode (USE_HTTP=true), the following REST endpoints are avai
 7. `POST /search_companies`
    - Search for companies with optional filters
    - Body: JSON object with search parameters (see `search_companies` tool inputs)
+
+8. `POST /search_deals`
+   - Search for deals with optional filters
+   - Body: JSON object with search parameters (see `search_deals` tool inputs)
 
 ## Setup
 

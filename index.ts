@@ -27,7 +27,8 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { createError, JsonValue } from "./util.js";
 import fetch from 'node-fetch';
-import express, { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import type { Request, Response, NextFunction } from 'express';
 import 'dotenv/config';
 import { createHash } from 'crypto';
 
@@ -459,6 +460,98 @@ interface SearchCompaniesParams {
   status?: string;        // Highest status of company's drugs
   offset?: number;        // Pagination offset
 }
+
+interface SearchDealsParams {
+  query?: string;
+  dealDrugNamesAll?: string;
+  indications?: string;
+  dealDrugCompanyPartnerIndications?: string;
+  dealPhaseHighestStart?: string;
+  dealPhaseHighestNow?: string;
+  dealStatus?: string;
+  dealSummary?: string;
+  dealTitleSummary?: string;
+  technologies?: string;
+  dealTitle?: string;
+  dealType?: string;
+  actionsPrimary?: string;
+  dealDrugActionsPrimary?: string;
+  dealCompanyPrincipal?: string;
+  dealCompanyPartner?: string;
+  dealCompanyPrincipalHq?: string;
+  dealTerritoriesIncluded?: string;
+  dealTerritoriesExcluded?: string;
+  dealDateStart?: string;
+  dealDateEnd?: string;
+  dealDateEventMostRecent?: string;
+  dealValuePaidToPartnerMaxNumber?: string;
+  dealTotalProjectedCurrentAmount?: string;
+  dealValuePaidToPartnerMinNumber?: string;
+  dealTotalPaidAmount?: string;
+  dealValuePaidToPrincipalMaxDisclosureStatus?: string;
+  dealValuePaidToPrincipalMaxNumber?: string;
+  dealValuePaidToPrincipalMinNumber?: string;
+  dealValueProjectedToPartnerMaxNumber?: string;
+  dealValueProjectedToPartnerMinNumber?: string;
+  dealValueProjectedToPrincipalMaxDisclosureStatus?: string;
+  dealValueProjectedToPrincipalMaxNumber?: string;
+  dealValueProjectedToPrincipalMinNumber?: string;
+  offset?: number;
+}
+
+const SEARCH_DEALS_TOOL: Tool = {
+  name: "search_deals",
+  description: "Search for deals in the Cortellis database. Supports all deal search parameters, including drug, company, indication, phase, value, and date filters.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "Raw search query (if you want to use the full Cortellis query syntax directly)" },
+      dealDrugNamesAll: { type: "string", description: "Main name of drug including synonyms associated with the deal" },
+      indications: { type: "string", description: "Indications associated with the deal" },
+      dealDrugCompanyPartnerIndications: { type: "string", description: "The indication and the partner company linked to a drug associated with the deal" },
+      dealPhaseHighestStart: { type: "string", description: "Highest dev. status of the drug at the deal start" },
+      dealPhaseHighestNow: { type: "string", description: "Current highest dev. status of the drug" },
+      dealStatus: { type: "string", description: "Status of the deal" },
+      dealSummary: { type: "string", description: "Summary of the deal" },
+      dealTitleSummary: { type: "string", description: "Title or summary of the deal" },
+      technologies: { type: "string", description: "Technology linked to the drug" },
+      dealTitle: { type: "string", description: "Title of the deal" },
+      dealType: { type: "string", description: "Type of deal" },
+      actionsPrimary: { type: "string", description: "Primary mechanism of action associated with the deal" },
+      dealDrugActionsPrimary: { type: "string", description: "The primary mechanism of action of a drug associated with the deal" },
+      dealCompanyPrincipal: { type: "string", description: "Principal company (Seller/Licensor)" },
+      dealCompanyPartner: { type: "string", description: "Partner company (Buyer/Licensee)" },
+      dealCompanyPrincipalHq: { type: "string", description: "Location of the HQ of the principal company" },
+      dealTerritoriesIncluded: { type: "string", description: "The deal applies in the included countries" },
+      dealTerritoriesExcluded: { type: "string", description: "The deal doesn't apply in the excluded countries" },
+      dealDateStart: { type: "string", description: "Start date of the deal" },
+      dealDateEnd: { type: "string", description: "End date of the deal" },
+      dealDateEventMostRecent: { type: "string", description: "Date of the latest timeline event" },
+      dealValuePaidToPartnerMaxNumber: { type: "string", description: "Maximal paid payment amount to partner company in M USD considering the accuracy range" },
+      dealTotalProjectedCurrentAmount: { type: "string", description: "Total current projection of the agreement in US dollars million" },
+      dealValuePaidToPartnerMinNumber: { type: "string", description: "Minimal paid payment amount to partner company in M USD considering the accuracy range" },
+      dealTotalPaidAmount: { type: "string", description: "Total payment value of the agreement realized in US dollars million" },
+      dealValuePaidToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the paid payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
+      dealValuePaidToPrincipalMaxNumber: { type: "string", description: "Maximal paid amount to principal company in M USD considering the accuracy range" },
+      dealValuePaidToPrincipalMinNumber: { type: "string", description: "Minimal paid amount to principal company in M USD considering the accuracy range" },
+      dealValueProjectedToPartnerMaxNumber: { type: "string", description: "Maximal projected current amount to partner company in M USD considering the accuracy range" },
+      dealValueProjectedToPartnerMinNumber: { type: "string", description: "Minimal projected current amount to partner company in M USD considering the accuracy range" },
+      dealValueProjectedToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
+      dealValueProjectedToPrincipalMaxNumber: { type: "string", description: "Maximal projected current amount to principal company in M USD considering the accuracy range" },
+      dealValueProjectedToPrincipalMinNumber: { type: "string", description: "Minimal projected current amount to principal company in M USD considering the accuracy range" },
+      offset: { type: "number", description: "Starting position in the results (default: 0)" }
+    }
+  },
+  examples: [
+    {
+      description: "Search for completed deals involving melanoma",
+      usage: `{
+        "dealStatus": "Completed",
+        "indications": "Melanoma"
+      }`
+    }
+  ]
+};
 
 function createMcpError(message: string, code: number = -32603): McpError {
   return new McpError(code, message);
@@ -935,6 +1028,59 @@ async function getCompany(id: string) {
   };
 }
 
+async function searchDeals(params: SearchDealsParams) {
+  const baseUrl = "https://api.cortellis.com/api-ws/ws/rs/deals-v2/deal/search";
+  let query = params.query;
+
+  if (!query) {
+    const queryParts: string[] = [];
+    if (params.dealDrugNamesAll) queryParts.push(`dealDrugNamesAll:${params.dealDrugNamesAll}`);
+    if (params.indications) queryParts.push(`indications:${params.indications}`);
+    if (params.dealDrugCompanyPartnerIndications) queryParts.push(`dealDrugCompanyPartnerIndications:${params.dealDrugCompanyPartnerIndications}`);
+    if (params.dealPhaseHighestStart) queryParts.push(`dealPhaseHighestStart:${params.dealPhaseHighestStart}`);
+    if (params.dealPhaseHighestNow) queryParts.push(`dealPhaseHighestNow:${params.dealPhaseHighestNow}`);
+    if (params.dealStatus) queryParts.push(`dealStatus:${params.dealStatus}`);
+    if (params.dealSummary) queryParts.push(`dealSummary:${params.dealSummary}`);
+    if (params.dealTitleSummary) queryParts.push(`dealTitleSummary:${params.dealTitleSummary}`);
+    if (params.technologies) queryParts.push(`technologies:${params.technologies}`);
+    if (params.dealTitle) queryParts.push(`dealTitle:${params.dealTitle}`);
+    if (params.dealType) queryParts.push(`dealType:${params.dealType}`);
+    if (params.actionsPrimary) queryParts.push(`actionsPrimary:${params.actionsPrimary}`);
+    if (params.dealDrugActionsPrimary) queryParts.push(`dealDrugActionsPrimary:${params.dealDrugActionsPrimary}`);
+    if (params.dealCompanyPrincipal) queryParts.push(`dealCompanyPrincipal:${params.dealCompanyPrincipal}`);
+    if (params.dealCompanyPartner) queryParts.push(`dealCompanyPartner:${params.dealCompanyPartner}`);
+    if (params.dealCompanyPrincipalHq) queryParts.push(`dealCompanyPrincipalHq:${params.dealCompanyPrincipalHq}`);
+    if (params.dealTerritoriesIncluded) queryParts.push(`dealTerritoriesIncluded:${params.dealTerritoriesIncluded}`);
+    if (params.dealTerritoriesExcluded) queryParts.push(`dealTerritoriesExcluded:${params.dealTerritoriesExcluded}`);
+    if (params.dealDateStart) queryParts.push(`dealDateStart:${params.dealDateStart}`);
+    if (params.dealDateEnd) queryParts.push(`dealDateEnd:${params.dealDateEnd}`);
+    if (params.dealDateEventMostRecent) queryParts.push(`dealDateEventMostRecent:${params.dealDateEventMostRecent}`);
+    if (params.dealValuePaidToPartnerMaxNumber) queryParts.push(`dealValuePaidToPartnerMaxNumber:${params.dealValuePaidToPartnerMaxNumber}`);
+    if (params.dealTotalProjectedCurrentAmount) queryParts.push(`dealTotalProjectedCurrentAmount:${params.dealTotalProjectedCurrentAmount}`);
+    if (params.dealValuePaidToPartnerMinNumber) queryParts.push(`dealValuePaidToPartnerMinNumber:${params.dealValuePaidToPartnerMinNumber}`);
+    if (params.dealTotalPaidAmount) queryParts.push(`dealTotalPaidAmount:${params.dealTotalPaidAmount}`);
+    if (params.dealValuePaidToPrincipalMaxDisclosureStatus) queryParts.push(`dealValuePaidToPrincipalMaxDisclosureStatus:${params.dealValuePaidToPrincipalMaxDisclosureStatus}`);
+    if (params.dealValuePaidToPrincipalMaxNumber) queryParts.push(`dealValuePaidToPrincipalMaxNumber:${params.dealValuePaidToPrincipalMaxNumber}`);
+    if (params.dealValuePaidToPrincipalMinNumber) queryParts.push(`dealValuePaidToPrincipalMinNumber:${params.dealValuePaidToPrincipalMinNumber}`);
+    if (params.dealValueProjectedToPartnerMaxNumber) queryParts.push(`dealValueProjectedToPartnerMaxNumber:${params.dealValueProjectedToPartnerMaxNumber}`);
+    if (params.dealValueProjectedToPartnerMinNumber) queryParts.push(`dealValueProjectedToPartnerMinNumber:${params.dealValueProjectedToPartnerMinNumber}`);
+    if (params.dealValueProjectedToPrincipalMaxDisclosureStatus) queryParts.push(`dealValueProjectedToPrincipalMaxDisclosureStatus:${params.dealValueProjectedToPrincipalMaxDisclosureStatus}`);
+    if (params.dealValueProjectedToPrincipalMaxNumber) queryParts.push(`dealValueProjectedToPrincipalMaxNumber:${params.dealValueProjectedToPrincipalMaxNumber}`);
+    if (params.dealValueProjectedToPrincipalMinNumber) queryParts.push(`dealValueProjectedToPrincipalMinNumber:${params.dealValueProjectedToPrincipalMinNumber}`);
+    query = queryParts.length > 0 ? queryParts.join(" AND ") : "*";
+  }
+
+  const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&fmt=json&hits=100`;
+  const response = await digestAuth(url);
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify(response, null, 2)
+    }],
+    isError: false
+  };
+}
+
 /**
  * Main server initialization and setup function
  * Supports both HTTP and MCP server modes with configurable transport
@@ -1011,6 +1157,16 @@ async function runServer() {
         name: SEARCH_COMPANIES_TOOL.name,
         description: SEARCH_COMPANIES_TOOL.description,
         schema: Object.entries(SEARCH_COMPANIES_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
+          name: key,
+          type: (prop as SchemaProperty).type,
+          description: (prop as SchemaProperty).description,
+          ...((prop as SchemaProperty).format ? { format: (prop as SchemaProperty).format } : {})
+        }))
+      },
+      {
+        name: SEARCH_DEALS_TOOL.name,
+        description: SEARCH_DEALS_TOOL.description,
+        schema: Object.entries(SEARCH_DEALS_TOOL.inputSchema.properties || {}).map(([key, prop]) => ({
           name: key,
           type: (prop as SchemaProperty).type,
           description: (prop as SchemaProperty).description,
@@ -1128,8 +1284,8 @@ async function runServer() {
     app.use(express.json());
 
     // Add logging middleware
-    app.use((req: Request, res: Response, next) => {
-      logger.info(`${req.method} ${req.url}`);
+    app.use((req: Request, res: Response, next: NextFunction) => {
+      console.log(`${req.method} ${req.url}`);
       next();
     });
 
@@ -1295,11 +1451,6 @@ async function runServer() {
       }
     });
 
-    // If using SSE transport, add SSE endpoint
-    if (TRANSPORT === 'sse') {
-      logger.warn("SSE transport is temporarily disabled.");
-    }
-
     // Start the server
     try {
       const httpServer = app.listen(PORT, () => {
@@ -1324,6 +1475,106 @@ async function runServer() {
   } else {
     // Non-HTTP mode
     const transport = new StdioServerTransport();
+    const server = new Server(
+      {
+        name: "cortellis",
+        version: "0.1.0",
+      },
+      {
+        capabilities: {
+          tools: {}
+        }
+      }
+    );
+
+    server.setRequestHandler(ListToolsRequestSchema, async () => ({
+      tools: [SEARCH_DRUGS_TOOL, EXPLORE_ONTOLOGY_TOOL, GET_DRUG_TOOL, GET_DRUG_SWOT_TOOL, GET_DRUG_FINANCIAL_TOOL, GET_COMPANY_TOOL, SEARCH_COMPANIES_TOOL]
+    }));
+
+    server.setRequestHandler(CallToolRequestSchema, async (request) => {
+      if (!request.params?.name) {
+        throw new McpError(
+          -32603,
+          "Tool name not provided"
+        );
+      }
+
+      const params = request.params.arguments || {};
+      
+      try {
+        switch (request.params.name) {
+          case "search_drugs":
+            return await searchDrugs(params as SearchParams);
+          case "explore_ontology":
+            if (typeof params.category !== 'string' || typeof params.term !== 'string') {
+              throw new McpError(-32603, 'Invalid category or search term');
+            }
+            return await exploreOntology(params as OntologyParams);
+          case "get_drug":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrug(params.id);
+          case "get_drug_swot":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrugSwot(params.id);
+          case "get_drug_financial":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid drug identifier');
+            }
+            return await getDrugFinancial(params.id);
+          case "get_company":
+            if (typeof params.id !== 'string') {
+              throw new McpError(-32603, 'Invalid company identifier');
+            }
+            return await getCompany(params.id);
+          case "search_companies":
+            if (params.query && typeof params.query !== 'string') {
+              throw new McpError(-32603, 'Invalid query parameter');
+            }
+            if (params.company_name && typeof params.company_name !== 'string') {
+              throw new McpError(-32603, 'Invalid company_name parameter');
+            }
+            if (params.hq_country && typeof params.hq_country !== 'string') {
+              throw new McpError(-32603, 'Invalid hq_country parameter');
+            }
+            if (params.deals_count && typeof params.deals_count !== 'string') {
+              throw new McpError(-32603, 'Invalid deals_count parameter');
+            }
+            if (params.indications && typeof params.indications !== 'string') {
+              throw new McpError(-32603, 'Invalid indications parameter');
+            }
+            if (params.actions && typeof params.actions !== 'string') {
+              throw new McpError(-32603, 'Invalid actions parameter');
+            }
+            if (params.technologies && typeof params.technologies !== 'string') {
+              throw new McpError(-32603, 'Invalid technologies parameter');
+            }
+            if (params.company_size && typeof params.company_size !== 'string') {
+              throw new McpError(-32603, 'Invalid company_size parameter');
+            }
+            if (params.status && typeof params.status !== 'string') {
+              throw new McpError(-32603, 'Invalid status parameter');
+            }
+            return await searchCompanies(params as SearchCompaniesParams);
+          default:
+            throw new McpError(
+              -32603,
+              `Unknown tool: ${request.params.name}`
+            );
+        }
+      } catch (error: unknown) {
+        if (error instanceof McpError) {
+          throw error;
+        }
+        throw new McpError(
+          -32603,
+          `Failed to execute ${request.params.name}: ${error instanceof Error ? error.message : String(error)}`
+        );
+      }
+    });
 
     await server.connect(transport);
     logger.info(`Cortellis MCP Server running with ${TRANSPORT} transport`);
