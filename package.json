@@ -1,6 +1,6 @@
 {
   "name": "@uh-joan/cortellis-mcp-server",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "MCP server for Cortellis drug database search and ontology exploration",
   "license": "MIT",
   "type": "module",
