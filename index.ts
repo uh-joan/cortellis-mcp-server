@@ -261,66 +261,31 @@ const SEARCH_DRUGS_TOOL: Tool = {
 
 const EXPLORE_ONTOLOGY_TOOL: Tool = {
   name: "explore_ontology",
-  description: "Explore the ontology or taxonomy terms in the Cortellis database",
+  description: "Search for any particular taxonomy term or its associated synonyms within the taxonomy tree.",
   inputSchema: {
     type: "object",
     properties: {
       term: {
         type: "string",
-        description: "Generic search term (used only if no specific category is provided)",
-        examples: ["GLP-1", "obesity", "diabetes"]
+        description: "Search term or synonym to look up in the taxonomy tree.",
+        examples: ["GLP-1", "obesity", "diabetes", "semaglutide"]
       },
       category: {
         type: "string",
-        description: "Category to search within",
+        description: "Taxonomy category. Supported values: action, company, indication, technology, target, condition, drug name.",
         enum: [
           "action",
-          "indication", 
           "company",
-          "drug_name",
+          "indication",
+          "technology",
           "target",
-          "technology"
+          "condition",
+          "drug name"
         ],
-        enumDescriptions: {
-          "action": "Drug mechanism of action or molecular target",
-          "indication": "Disease or condition the drug treats",
-          "company": "Organizations developing drugs",
-          "drug_name": "Names of drug compounds",
-          "target": "Biological targets of drugs",
-          "technology": "Drug development technologies and platforms"
-        }
-      },
-      action: {
-        type: "string",
-        description: "Target specific action of the drug",
-        examples: ["glucagon", "GLP-1", "insulin receptor agonist"]
-      },
-      indication: {
-        type: "string",
-        description: "Active indications of a drug",
-        examples: ["obesity", "diabetes", "NASH"]
-      },
-      company: {
-        type: "string",
-        description: "Active companies developing drugs",
-        examples: ["Novo Nordisk", "Eli Lilly", "Pfizer"]
-      },
-      drug_name: {
-        type: "string",
-        description: "Drug name to search",
-        examples: ["semaglutide", "tirzepatide"]
-      },
-      target: {
-        type: "string",
-        description: "Target of the drug",
-        examples: ["GLP-1 receptor", "insulin receptor"]
-      },
-      technology: {
-        type: "string",
-        description: "Technologies used in drug development",
-        examples: ["small molecule", "monoclonal antibody", "peptide"]
+        examples: ["action", "indication", "drug name"]
       }
-    }
+    },
+    required: ["term", "category"]
   },
   examples: [
     {
@@ -328,6 +293,13 @@ const EXPLORE_ONTOLOGY_TOOL: Tool = {
       usage: `{
         "category": "action",
         "term": "GLP-1"
+      }`
+    },
+    {
+      description: "Search for semaglutide as a drug name",
+      usage: `{
+        "category": "drug name",
+        "term": "semaglutide"
       }`
     }
   ]
@@ -592,15 +564,9 @@ interface SearchParams {
  * Interface for ontology exploration parameters
  * Used to search and navigate the Cortellis taxonomy
  */
-interface OntologyParams {
-  term?: string;            // Generic search term
-  category?: string;        // Specific category to search within
-  action?: string;          // Action/mechanism specific search
-  indication?: string;      // Disease/condition specific search
-  company?: string;         // Company specific search
-  drug_name?: string;       // Drug name specific search
-  target?: string;          // Drug target specific search
-  technology?: string;      // Technology specific search
+interface ExploreOntologyParams {
+  term: string;
+  category: string;
 }
 
 /**
@@ -975,60 +941,48 @@ async function searchCompanies(params: SearchCompaniesParams) {
  * @returns Promise resolving to matching taxonomy terms
  * @throws McpError if the exploration fails
  */
-async function exploreOntology(params: OntologyParams) {
+async function exploreOntology(params: ExploreOntologyParams) {
   try {
     logger.info('Received params:', params);
 
-    // Determine which parameter to use as the search term
-    let searchTerm = params.term;
-    let searchCategory = params.category;
-
-    // If no explicit term/category provided, check other parameters
-    if (!searchCategory || !searchTerm) {
-      if (params.action) {
-        searchCategory = 'action';
-        searchTerm = params.action;
-      } else if (params.indication) {
-        searchCategory = 'indication';
-        searchTerm = params.indication;
-      } else if (params.company) {
-        searchCategory = 'company';
-        searchTerm = params.company;
-      } else if (params.drug_name) {
-        searchCategory = 'drug_name';
-        searchTerm = params.drug_name;
-      } else if (params.target) {
-        searchCategory = 'target';
-        searchTerm = params.target;
-      } else if (params.technology) {
-        searchCategory = 'technology';
-        searchTerm = params.technology;
-      }
-    }
-
-    logger.info('Resolved search parameters:', { searchCategory, searchTerm });
-
-    if (!searchCategory || !searchTerm) {
-      throw new McpError(-32603, 'Category and search term are required');
-    }
-
-    // Map category to the correct API endpoint
+    // Accept a variety of user-friendly category values
     const categoryMap: { [key: string]: string } = {
       'action': 'action',
-      'indication': 'indication',
+      'actions': 'action',
       'company': 'company',
-      'drug_name': 'drug',
+      'companies': 'company',
+      'indication': 'indication',
+      'indications': 'indication',
+      'technology': 'technology',
+      'technologies': 'technology',
       'target': 'target',
-      'technology': 'technology'
+      'targets': 'target',
+      'condition': 'condition',
+      'conditions': 'condition',
+      'drug name': 'drug name',
+      'drug_name': 'drug name',
+      'drug': 'drug name',
+      'DrugName': 'drug name',
+      'drugname': 'drug name',
+      'Drug Name': 'drug name',
     };
 
-    const apiCategory = categoryMap[searchCategory];
-    if (!apiCategory) {
-      throw new McpError(-32603, `Invalid category: ${searchCategory}`);
+    let { term, category } = params;
+    if (!term || !category) {
+      throw new McpError(-32603, 'Both term and category are required');
+    }
+    category = categoryMap[category.trim().toLowerCase()] || category.trim();
+
+    // Validate category
+    const validTypes = [
+      'action', 'company', 'indication', 'technology', 'target', 'condition', 'drug name'
+    ];
+    if (!validTypes.includes(category)) {
+      throw new McpError(-32603, `Invalid category: ${category}`);
     }
 
     const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1/taxonomy';
-    const searchUrl = `${baseUrl}/${apiCategory}/search/${encodeURIComponent(searchTerm)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
+    const searchUrl = `${baseUrl}/${encodeURIComponent(category)}/search/${encodeURIComponent(term)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
 
     logger.info('Making request to URL:', searchUrl);
 
@@ -1316,10 +1270,11 @@ async function runServer() {
         case "search_drugs":
           return await searchDrugs(params as SearchParams);
         case "explore_ontology":
-          if (typeof params.category !== 'string' || typeof params.term !== 'string') {
+          if (typeof params.term !== 'string' || typeof params.category !== 'string') {
             throw new McpError(-32603, 'Invalid category or search term');
           }
-          return await exploreOntology(params as OntologyParams);
+          const exploreOntologyParams: ExploreOntologyParams = { term: params.term, category: params.category };
+          return await exploreOntology(exploreOntologyParams);
         case "get_drug":
           if (typeof params.id !== 'string') {
             throw new McpError(-32603, 'Invalid drug identifier');
@@ -1443,43 +1398,13 @@ async function runServer() {
     app.post('/explore_ontology', async (req: Request, res: Response) => {
       try {
         logger.info('Received explore_ontology request:', req.body);
-        const { term, category, action, indication, company, drug_name, target, technology } = req.body;
+        const { term, category } = req.body;
         
-        let searchCategory = category;
-        let searchTerm = term;
-
-        if (!searchCategory) {
-          if (action) {
-            searchCategory = 'action';
-            searchTerm = action;
-          } else if (indication) {
-            searchCategory = 'indication';
-            searchTerm = indication;
-          } else if (company) {
-            searchCategory = 'company';
-            searchTerm = company;
-          } else if (drug_name) {
-            searchCategory = 'drug_name';
-            searchTerm = drug_name;
-          } else if (target) {
-            searchCategory = 'target';
-            searchTerm = target;
-          } else if (technology) {
-            searchCategory = 'technology';
-            searchTerm = technology;
-          }
+        if (typeof term !== 'string' || typeof category !== 'string') {
+          throw new McpError(-32603, 'Invalid term or category');
         }
-
-        if (!searchTerm) {
-          searchTerm = term;
-        }
-
-        if (typeof searchCategory !== 'string' || typeof searchTerm !== 'string') {
-          throw new McpError(-32603, 'Invalid category or search term');
-        }
-
-        logger.info('Making ontology search request with:', { searchCategory, searchTerm });
-        const result = await exploreOntology({ term: searchTerm, category: searchCategory });
+        logger.info('Making ontology search request with:', { term, category });
+        const result = await exploreOntology({ term, category });
         logger.info('Ontology search result:', result);
         res.json(result);
       } catch (error) {
@@ -1630,10 +1555,11 @@ async function runServer() {
           case "search_drugs":
             return await searchDrugs(params as SearchParams);
           case "explore_ontology":
-            if (typeof params.category !== 'string' || typeof params.term !== 'string') {
+            if (typeof params.term !== 'string' || typeof params.category !== 'string') {
               throw new McpError(-32603, 'Invalid category or search term');
             }
-            return await exploreOntology(params as OntologyParams);
+            const exploreOntologyParams2: ExploreOntologyParams = { term: params.term, category: params.category };
+            return await exploreOntology(exploreOntologyParams2);
           case "get_drug":
             if (typeof params.id !== 'string') {
               throw new McpError(-32603, 'Invalid drug identifier');
