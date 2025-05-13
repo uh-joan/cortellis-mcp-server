@@ -971,7 +971,7 @@ async function exploreOntology(params: ExploreOntologyParams) {
     if (!term || !category) {
       throw new McpError(-32603, 'Both term and category are required');
     }
-    let mappedCategory = categoryMap[category.trim().toLowerCase()] || category.trim();
+    const mappedCategory = categoryMap[category.trim().toLowerCase()] || category.trim();
 
     // Validate category
     const validTypes = [
