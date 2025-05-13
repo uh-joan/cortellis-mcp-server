@@ -486,6 +486,19 @@ const SEARCH_DEALS_TOOL: Tool = {
       dealValueProjectedToPrincipalMaxDisclosureStatus: { type: "string", description: "Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'" },
       dealValueProjectedToPrincipalMaxNumber: { type: "string", description: "Maximal projected current amount to principal company in M USD considering the accuracy range" },
       dealValueProjectedToPrincipalMinNumber: { type: "string", description: "Minimal projected current amount to principal company in M USD considering the accuracy range" },
+      sortBy: {
+        type: "string",
+        description: "Sort order for results. Use '+field' for ascending or '-field' for descending. Supported fields: dealDateStart, dealDateEnd, dealDateEventMostRecent, dealTotalPaidSortBy, dealTotalProjectedCurrentSortBy, dealValuePaidToPrincipalMaxSortBy, dealValueProjectedToPrincipalMaxSortBy. Example: '+dealDateStart' for oldest first, '-dealDateStart' for newest first.",
+        examples: [
+          "+dealDateStart", "-dealDateStart",
+          "+dealDateEnd", "-dealDateEnd",
+          "+dealDateEventMostRecent", "-dealDateEventMostRecent",
+          "+dealTotalPaidSortBy", "-dealTotalPaidSortBy",
+          "+dealTotalProjectedCurrentSortBy", "-dealTotalProjectedCurrentSortBy",
+          "+dealValuePaidToPrincipalMaxSortBy", "-dealValuePaidToPrincipalMaxSortBy",
+          "+dealValueProjectedToPrincipalMaxSortBy", "-dealValueProjectedToPrincipalMaxSortBy"
+        ]
+      },
       offset: { type: "number", description: "Starting position in the results (default: 0)" }
     }
   },
@@ -502,6 +515,54 @@ const SEARCH_DEALS_TOOL: Tool = {
       usage: `{
         "dealDrugActionsPrimary": "Glucagon-like peptide 1 receptor agonist",
         "dealDateStart": "RANGE(>2025-04-08;<2025-05-08)"
+      }`
+    },
+    {
+      description: "Get the last 10 deals for Novo Nordisk, sorted by most recent end date",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealDateEnd",
+        "offset": 0
+      }`
+    },
+    {
+      description: "Get the last 10 deals for Novo Nordisk, sorted by most recent event date",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealDateEventMostRecent",
+        "offset": 0
+      }`
+    },
+    {
+      description: "Get the top 10 deals for Novo Nordisk by total paid amount",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealTotalPaidSortBy",
+        "offset": 0
+      }`
+    },
+    {
+      description: "Get the top 10 deals for Novo Nordisk by total projected current amount",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealTotalProjectedCurrentSortBy",
+        "offset": 0
+      }`
+    },
+    {
+      description: "Get the top 10 deals for Novo Nordisk by value paid to principal (max)",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealValuePaidToPrincipalMaxSortBy",
+        "offset": 0
+      }`
+    },
+    {
+      description: "Get the top 10 deals for Novo Nordisk by value projected to principal (max)",
+      usage: `{
+        "dealCompanyPrincipal": "Novo Nordisk",
+        "sortBy": "-dealValueProjectedToPrincipalMaxSortBy",
+        "offset": 0
       }`
     }
   ]
@@ -593,6 +654,7 @@ interface SearchDealsParams {
   dealValueProjectedToPrincipalMaxDisclosureStatus?: string;
   dealValueProjectedToPrincipalMaxNumber?: string;
   dealValueProjectedToPrincipalMinNumber?: string;
+  sortBy?: string;
   offset?: number;
 }
 
@@ -1114,7 +1176,7 @@ async function searchDeals(params: SearchDealsParams) {
     query = queryParts.length > 0 ? queryParts.join(" AND ") : "*";
   }
 
-  const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&fmt=json&hits=100`;
+  const url = `${baseUrl}?query=${encodeURIComponent(query)}&offset=${params.offset || 0}&fmt=json&hits=100${params.sortBy ? `&sortBy=${encodeURIComponent(params.sortBy)}` : ''}`;
   const response = await digestAuth(url);
   return {
     content: [{

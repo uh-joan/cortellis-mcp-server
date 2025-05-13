@@ -169,15 +169,83 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `dealTitle` (string) - Title of the deal
      - `dealType` (string) - Type of deal
      - `actionsPrimary` (string) - Primary mechanism of action associated with the deal
-     - and more. Refer to the Cortellis official documentation for a full list.
+     - `dealValueProjectedToPrincipalMaxNumber` (string) - Maximal projected current amount to principal company in M USD considering the accuracy range
+     - `dealValueProjectedToPrincipalMinNumber` (string) - Minimal projected current amount to principal company in M USD considering the accuracy range
+     - `sortBy` (string) - Sort order for results. Use '+field' for ascending or '-field' for descending. Supported fields: dealDateStart, dealDateEnd, dealDateEventMostRecent, dealTotalPaidSortBy, dealTotalProjectedCurrentSortBy, dealValuePaidToPrincipalMaxSortBy, dealValueProjectedToPrincipalMaxSortBy. Example: '+dealDateStart' for oldest first, '-dealDateStart' for newest first. Useful for queries like 'last 10 deals for a company'.
+     - `offset` (number) - For pagination
    - Returns: JSON response with deal information
    - Example:
      ```json
      {
-       "dealStatus": "Completed",
-       "indications": "Melanoma"
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealDateStart",
+       "offset": 0
      }
      ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealDateEnd",
+       "offset": 0
+     }
+     ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealDateEventMostRecent",
+       "offset": 0
+     }
+     ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealTotalPaidSortBy",
+       "offset": 0
+     }
+     ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealTotalProjectedCurrentSortBy",
+       "offset": 0
+     }
+     ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealValuePaidToPrincipalMaxSortBy",
+       "offset": 0
+     }
+     ```
+     ```json
+     {
+       "dealCompanyPrincipal": "Novo Nordisk",
+       "sortBy": "-dealValueProjectedToPrincipalMaxSortBy",
+       "offset": 0
+     }
+     ```
+
+   **Sorts (sortBy parameter):**
+   
+   The `sortBy` parameter controls the order of results. Use `+field` for ascending or `-field` for descending order. Supported fields:
+   
+   - `dealDateStart`: Sort by the deal's start date (e.g., `-dealDateStart` for most recent deals first)
+   - `dealDateEnd`: Sort by the deal's end date
+   - `dealDateEventMostRecent`: Sort by the most recent event date in the deal timeline
+   - `dealTotalPaidSortBy`: Sort by the total paid amount for the deal
+   - `dealTotalProjectedCurrentSortBy`: Sort by the total projected current value of the deal
+   - `dealValuePaidToPrincipalMaxSortBy`: Sort by the maximum value paid to the principal company
+   - `dealValueProjectedToPrincipalMaxSortBy`: Sort by the maximum projected value to the principal company
+   
+   **When to use each sort:**
+   - Use `-dealDateStart` to get the newest deals first (e.g., "last 10 deals for a company").
+   - Use `-dealDateEnd` to find deals that ended most recently.
+   - Use `-dealDateEventMostRecent` to find deals with the latest activity or milestone.
+   - Use `-dealTotalPaidSortBy` to find the highest-value deals by total paid amount.
+   - Use `-dealTotalProjectedCurrentSortBy` to find deals with the largest projected value.
+   - Use `-dealValuePaidToPrincipalMaxSortBy` or `-dealValueProjectedToPrincipalMaxSortBy` for principal company payment/value ranking.
+   
+   You can combine `sortBy` with `offset` and other filters to page through sorted results.
 
 ## Features
 
