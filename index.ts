@@ -204,7 +204,17 @@ const SEARCH_DRUGS_TOOL: Tool = {
         format: "'<X' for less than $XB, 'X' for greater than $XB",
         examples: ["<2", "2"],
         notes: "Values are in billions USD"
-      }
+      },
+      developmentStatusDate: {
+        type: "string",
+        description: "Date of change in status (only possible within LINKED queries). Use RANGE(>=YYYY-MM-DD;<=YYYY-MM-DD) for ranges.",
+        examples: ["RANGE(>=2023-01-01;<=2023-12-31)"]
+      },
+      historic: {
+        type: "boolean",
+        description: "Set to true to search using the historic development status fields. This is required for questions about the status of a drug at a specific point in the past (e.g., 'What drugs were in phase 3 in 2019?'). If you want to know the status as it was at a particular date or within a date range, always set historic: true and use the developmentStatusDate parameter.",
+        examples: [true, false]
+      },
     }
   },
   examples: [
@@ -216,9 +226,33 @@ const SEARCH_DRUGS_TOOL: Tool = {
       }`
     },
     {
+      description: "Search for drugs with a status change in 2023",
+      usage: `{
+        "developmentStatusDate": "RANGE(>=2023-01-01;<=2023-12-31)"
+      }`
+    },
+    {
+      description: "Search for historic launched drugs in the US for Obesity",
+      usage: `{
+        "phase": "L",
+        "country": "US",
+        "indication": "238",
+        "historic": true
+      }`
+    },
+    {
       description: "Search for drugs in Phase 3 OR Pre-registration",
       usage: `{
         "phase": "C3 OR PR"
+      }`
+    },
+    {
+      description: "Find drugs that were in phase 3 for Parkinson's disease in 2019 (historic snapshot)",
+      usage: `{
+        "indication": "255",
+        "phase": "C3",
+        "developmentStatusDate": "RANGE(>=2019-01-01;<=2019-12-31)",
+        "historic": true
       }`
     }
   ]
@@ -437,7 +471,7 @@ const SEARCH_DEALS_TOOL: Tool = {
       dealCompanyPrincipalHq: { type: "string", description: "Location of the HQ of the principal company" },
       dealTerritoriesIncluded: { type: "string", description: "The deal applies in the included countries" },
       dealTerritoriesExcluded: { type: "string", description: "The deal doesn't apply in the excluded countries" },
-      dealDateStart: { type: "string", description: "Start date of the deal" },
+      dealDateStart: { type: "string", description: "Start date of the deal. To specify a range, use: RANGE(>YYYY-MM-DD;<YYYY-MM-DD). For example, to get deals in the last month: RANGE(>2025-04-08;<2025-05-08)", examples: ["2025-04-08", "RANGE(>2025-04-08;<2025-05-08)"] },
       dealDateEnd: { type: "string", description: "End date of the deal" },
       dealDateEventMostRecent: { type: "string", description: "Date of the latest timeline event" },
       dealValuePaidToPartnerMaxNumber: { type: "string", description: "Maximal paid payment amount to partner company in M USD considering the accuracy range" },
@@ -462,6 +496,13 @@ const SEARCH_DEALS_TOOL: Tool = {
         "dealStatus": "Completed",
         "indications": "Melanoma"
       }`
+    },
+    {
+      description: "Find deals in the last month targeting GLP-1",
+      usage: `{
+        "dealDrugActionsPrimary": "Glucagon-like peptide 1 receptor agonist",
+        "dealDateStart": "RANGE(>2025-04-08;<2025-05-08)"
+      }`
     }
   ]
 };
@@ -481,6 +522,8 @@ interface SearchParams {
   drug_name?: string;       // Name of the drug compound
   country?: string;         // Country ID for regional filtering
   offset?: number;          // Pagination offset
+  developmentStatusDate?: string; // Date of change in status (for LINKED queries)
+  historic?: boolean;       // If true, use historic development status fields
 }
 
 /**
@@ -698,12 +741,13 @@ async function searchDrugs(params: SearchParams) {
   if (!query) {
     const linkedParts: string[] = [];
     const otherParts: string[] = [];
-    
+    const isHistoric = params.historic === true;
     // Handle development status related parameters with LINKED clause
-    if (params.company) linkedParts.push(`developmentStatusCompanyId:${params.company}`);
-    if (params.indication) linkedParts.push(`developmentStatusIndicationId:${params.indication}`);
-    if (params.country) linkedParts.push(`developmentStatusCountryId:${params.country}`);
-    if (params.phase) linkedParts.push(`developmentStatusPhaseId:${params.phase}`);
+    if (params.company) linkedParts.push(`${isHistoric ? 'developmentStatusHistoricCompanyId' : 'developmentStatusCompanyId'}:${params.company}`);
+    if (params.indication) linkedParts.push(`${isHistoric ? 'developmentStatusHistoricIndicationId' : 'developmentStatusIndicationId'}:${params.indication}`);
+    if (params.country) linkedParts.push(`${isHistoric ? 'developmentStatusHistoricCountryId' : 'developmentStatusCountryId'}:${params.country}`);
+    if (params.phase) linkedParts.push(`${isHistoric ? 'developmentStatusHistoricPhaseId' : 'developmentStatusPhaseId'}:${params.phase}`);
+    if (params.developmentStatusDate) linkedParts.push(`${isHistoric ? 'developmentStatusHistoricDate' : 'developmentStatusDate'}:${params.developmentStatusDate}`);
     
     // Handle other parameters
     if (params.technology) otherParts.push(`technologies:${params.technology}`);
@@ -1301,17 +1345,18 @@ async function runServer() {
     app.post('/search_drugs', async (req: Request, res: Response) => {
       try {
         logger.info('Received search_drugs request:', req.body);
-        const { query, company, indication, action, phase, phase_terminated, technology, drug_name, country, offset } = req.body;
+        const { query, company, indication, action, phase, phase_terminated, technology, drug_name, country, offset, developmentStatusDate, historic } = req.body;
         
         let finalQuery = query;
         if (!finalQuery) {
           const linkedParts: string[] = [];
           
           // Handle development status related parameters with LINKED clause
-          if (company) linkedParts.push(`developmentStatusCompanyId:${company}`);
-          if (indication) linkedParts.push(`developmentStatusIndicationId:${indication}`);
-          if (country) linkedParts.push(`developmentStatusCountryId:${country}`);
-          if (phase) linkedParts.push(`developmentStatusPhaseId:${phase}`);
+          if (company) linkedParts.push(`${historic ? 'developmentStatusHistoricCompanyId' : 'developmentStatusCompanyId'}:${company}`);
+          if (indication) linkedParts.push(`${historic ? 'developmentStatusHistoricIndicationId' : 'developmentStatusIndicationId'}:${indication}`);
+          if (country) linkedParts.push(`${historic ? 'developmentStatusHistoricCountryId' : 'developmentStatusCountryId'}:${country}`);
+          if (phase) linkedParts.push(`${historic ? 'developmentStatusHistoricPhaseId' : 'developmentStatusPhaseId'}:${phase}`);
+          if (developmentStatusDate) linkedParts.push(`${historic ? 'developmentStatusHistoricDate' : 'developmentStatusDate'}:${developmentStatusDate}`);
           
           // Only use the LINKED clause
           finalQuery = linkedParts.length > 0 ? `LINKED(${linkedParts.join(" AND ")})` : "*";
@@ -1319,7 +1364,7 @@ async function runServer() {
 
         logger.info('Generated query:', finalQuery);
         
-        const result = await searchDrugs({ query: finalQuery, offset });
+        const result = await searchDrugs({ query: finalQuery, offset, historic });
         res.json(result);
       } catch (error) {
         logger.error('Error in /search_drugs:', error);

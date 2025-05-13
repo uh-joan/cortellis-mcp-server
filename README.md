@@ -39,10 +39,8 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `action` (string) - Target specific action (e.g., glucagon)
      - `phase` (string) - Development status:
        - Uses LINKED format with short codes: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
-       - Supports OR/AND operators: "L OR C3"
        - Examples:
          - phase: "L"
-         - phase: "C3 OR PR"
        - Status codes:
          - S: Suspended
          - DR: Discovery/Preclinical
@@ -57,6 +55,7 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
          - W: Withdrawn
      - `phase_terminated` (string) - Last phase before NDR/DX
        - Uses short format with double colon: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
+       - Supports AND/OR operators
        - Examples:
          - `phase_terminated: "C2"`
          - `phase_terminated: "C2 OR C3"`
@@ -64,6 +63,10 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `drug_name` (string) - Name of the drug
      - `country` (string) - Country ID (e.g., "US")
      - `offset` (number) - For pagination
+     - `company_size` (string) - The size of a company based on market capitalization in billions USD
+       - Format: '<X' for less than $XB, 'X' for greater than $XB
+     - `developmentStatusDate` (string) - Date of change in status (only possible within LINKED queries). Use RANGE(>=YYYY-MM-DD;<=YYYY-MM-DD) for ranges. Example: `RANGE(>=2023-01-01;<=2023-12-31)`
+     - `historic` (boolean) - **Set to true to search using the historic development status fields. This is required for questions about the status of a drug at a specific point in the past (e.g., 'What drugs were in phase 3 in 2019?'). If you want to know the status as it was at a particular date or within a date range, always set historic: true and use the developmentStatusDate parameter.**
    - Returns: JSON response with drug information and development status
 
 2. `explore_ontology`
@@ -166,28 +169,7 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `dealTitle` (string) - Title of the deal
      - `dealType` (string) - Type of deal
      - `actionsPrimary` (string) - Primary mechanism of action associated with the deal
-     - `dealDrugActionsPrimary` (string) - The primary mechanism of action of a drug associated with the deal
-     - `dealCompanyPrincipal` (string) - Principal company (Seller/Licensor)
-     - `dealCompanyPartner` (string) - Partner company (Buyer/Licensee)
-     - `dealCompanyPrincipalHq` (string) - Location of the HQ of the principal company
-     - `dealTerritoriesIncluded` (string) - The deal applies in the included countries
-     - `dealTerritoriesExcluded` (string) - The deal doesn't apply in the excluded countries
-     - `dealDateStart` (string) - Start date of the deal
-     - `dealDateEnd` (string) - End date of the deal
-     - `dealDateEventMostRecent` (string) - Date of the latest timeline event
-     - `dealValuePaidToPartnerMaxNumber` (string) - Maximal paid payment amount to partner company in M USD considering the accuracy range
-     - `dealTotalProjectedCurrentAmount` (string) - Total current projection of the agreement in US dollars million
-     - `dealValuePaidToPartnerMinNumber` (string) - Minimal paid payment amount to partner company in M USD considering the accuracy range
-     - `dealTotalPaidAmount` (string) - Total payment value of the agreement realized in US dollars million
-     - `dealValuePaidToPrincipalMaxDisclosureStatus` (string) - Whether the paid payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'
-     - `dealValuePaidToPrincipalMaxNumber` (string) - Maximal paid amount to principal company in M USD considering the accuracy range
-     - `dealValuePaidToPrincipalMinNumber` (string) - Minimal paid amount to principal company in M USD considering the accuracy range
-     - `dealValueProjectedToPartnerMaxNumber` (string) - Maximal projected current amount to partner company in M USD considering the accuracy range
-     - `dealValueProjectedToPartnerMinNumber` (string) - Minimal projected current amount to partner company in M USD considering the accuracy range
-     - `dealValueProjectedToPrincipalMaxDisclosureStatus` (string) - Whether the projected current payment of the principal company is either 'Payment Unspecified', 'Unknown', or 'Known'
-     - `dealValueProjectedToPrincipalMaxNumber` (string) - Maximal projected current amount to principal company in M USD considering the accuracy range
-     - `dealValueProjectedToPrincipalMinNumber` (string) - Minimal projected current amount to principal company in M USD considering the accuracy range
-     - `offset` (number) - For pagination
+     - and more. Refer to the Cortellis official documentation for a full list.
    - Returns: JSON response with deal information
    - Example:
      ```json
@@ -325,7 +307,3 @@ This project is not affiliated with, endorsed by, or sponsored by Clarivate Anal
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
-
-## Versioning
-
-We use [SemVer](http://semver.org/) for versioning. For the versions available, see the [tags on this repository](https://github.com/uh-joan/cortellis-mcp-server/tags).
