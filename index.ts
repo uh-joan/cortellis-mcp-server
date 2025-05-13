@@ -967,22 +967,22 @@ async function exploreOntology(params: ExploreOntologyParams) {
       'Drug Name': 'drug name',
     };
 
-    let { term, category } = params;
+    const { term, category } = params;
     if (!term || !category) {
       throw new McpError(-32603, 'Both term and category are required');
     }
-    category = categoryMap[category.trim().toLowerCase()] || category.trim();
+    let mappedCategory = categoryMap[category.trim().toLowerCase()] || category.trim();
 
     // Validate category
     const validTypes = [
       'action', 'company', 'indication', 'technology', 'target', 'condition', 'drug name'
     ];
-    if (!validTypes.includes(category)) {
-      throw new McpError(-32603, `Invalid category: ${category}`);
+    if (!validTypes.includes(mappedCategory)) {
+      throw new McpError(-32603, `Invalid category: ${mappedCategory}`);
     }
 
     const baseUrl = 'https://api.cortellis.com/api-ws/ws/rs/ontologies-v1/taxonomy';
-    const searchUrl = `${baseUrl}/${encodeURIComponent(category)}/search/${encodeURIComponent(term)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
+    const searchUrl = `${baseUrl}/${encodeURIComponent(mappedCategory)}/search/${encodeURIComponent(term)}?showDuplicates=0&hitSynonyms=1&fmt=json`;
 
     logger.info('Making request to URL:', searchUrl);
 
@@ -1269,12 +1269,13 @@ async function runServer() {
       switch (request.params.name) {
         case "search_drugs":
           return await searchDrugs(params as SearchParams);
-        case "explore_ontology":
+        case "explore_ontology": {
           if (typeof params.term !== 'string' || typeof params.category !== 'string') {
             throw new McpError(-32603, 'Invalid category or search term');
           }
           const exploreOntologyParams: ExploreOntologyParams = { term: params.term, category: params.category };
           return await exploreOntology(exploreOntologyParams);
+        }
         case "get_drug":
           if (typeof params.id !== 'string') {
             throw new McpError(-32603, 'Invalid drug identifier');
@@ -1554,12 +1555,13 @@ async function runServer() {
         switch (request.params.name) {
           case "search_drugs":
             return await searchDrugs(params as SearchParams);
-          case "explore_ontology":
+          case "explore_ontology": {
             if (typeof params.term !== 'string' || typeof params.category !== 'string') {
               throw new McpError(-32603, 'Invalid category or search term');
             }
             const exploreOntologyParams2: ExploreOntologyParams = { term: params.term, category: params.category };
             return await exploreOntology(exploreOntologyParams2);
+          }
           case "get_drug":
             if (typeof params.id !== 'string') {
               throw new McpError(-32603, 'Invalid drug identifier');
