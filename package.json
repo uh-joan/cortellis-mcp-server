@@ -47,6 +47,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.1",
+    "@uh-joan/cortellis-mcp-server": "^0.5.1",
     "dotenv": "^16.5.0",
     "express": "^4.18.3",
     "node-fetch": "^3.3.2"
