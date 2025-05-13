@@ -140,7 +140,7 @@ const SEARCH_DRUGS_TOOL: Tool = {
       },
       phase: {
         type: "string",
-        description: "Overall Highest development status of drug",
+        description: "Overall Highest development status of drug. For both non-historic and historic queries, only a single phase value is supported; do not use OR/AND. Agents should run separate queries for each phase.",
         enum: [
           "S",   // Suspended
           "DR",  // Discovery/Preclinical
@@ -173,10 +173,11 @@ const SEARCH_DRUGS_TOOL: Tool = {
         },
         examples: [
           "L",
-          "C3 OR PR",
-          "C2 AND C3"
+          "C1",
+          "C2",
+          "C3"
         ],
-        format: "Can use OR/AND operators for multiple phases"
+        format: "Only a single phase value is supported. Do not use OR/AND. Run separate queries for each phase."
       },
       phase_terminated: {
         type: "string",

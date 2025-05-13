@@ -39,8 +39,12 @@ USE_HTTP=true PORT=3000 npx cortellis-mcp-server
      - `action` (string) - Target specific action (e.g., glucagon)
      - `phase` (string) - Development status:
        - Uses LINKED format with short codes: S, DR, CU, C1-C3, PR, R, L, OL, NDR, DX, W
+       - **Important:** For both non-historic and historic queries, only a single phase value is supported for the `phase` parameter; do not use OR/AND. If you need to search for multiple phases, run separate queries for each phase.
        - Examples:
          - phase: "L"
+         - phase: "C1"
+         - phase: "C2"
+         - phase: "C3"
        - Status codes:
          - S: Suspended
          - DR: Discovery/Preclinical
